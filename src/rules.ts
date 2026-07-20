@@ -12,7 +12,15 @@ export interface LayerDef {
 export type Rule =
   | { id: string; type: "no-cycles"; level: RuleLevel; rationale: string }
   | { id: string; type: "layer-order"; ignoreTypeImports: boolean; rationale: string }
-  | { id: string; type: "forbidden-edge"; from: string; to: string; rationale: string; fix?: string };
+  | {
+      id: string;
+      type: "forbidden-edge";
+      from: string;
+      to: string;
+      ignoreTypeImports: boolean;
+      rationale: string;
+      fix?: string;
+    };
 
 export interface Exemption {
   rule: string;
@@ -69,6 +77,7 @@ function parseRule(raw: Record<string, unknown>, index: number): Rule {
         type: "forbidden-edge",
         from: requireString(raw.from, `rule "${id}": from`),
         to: requireString(raw.to, `rule "${id}": to`),
+        ignoreTypeImports: raw["ignore-type-imports"] === true,
         rationale,
       };
       if (raw.fix !== undefined) rule.fix = requireString(raw.fix, `rule "${id}": fix`);

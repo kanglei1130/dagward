@@ -187,7 +187,10 @@ function runCheck(targetDir: string, projectOverride: string | undefined): numbe
     );
     const { graph: files } = timed("file graph", () => buildFileGraph(project));
     const folders = timed("folder graph", () => buildFolderGraph(files));
-    const { violations, unusedExemptions } = evaluate(ruleSet, { folders, files });
+    const { violations, unusedExemptions, deadPatterns } = evaluate(ruleSet, { folders, files });
+    for (const { where, pattern } of deadPatterns) {
+      console.error(`Warning: ${where} matches no file: "${pattern}" — typo, or the rule is inert`);
+    }
     for (const ex of unusedExemptions) {
       console.error(`Warning: unused exemption (rule "${ex.rule}", from "${ex.from}", to "${ex.to}")`);
     }

@@ -25,4 +25,25 @@ describe("globToRegExp", () => {
     expect(re.test("src/graph.ts")).toBe(true);
     expect(re.test("src/graph.tsx")).toBe(false);
   });
+
+  it("expands brace alternatives", () => {
+    const re = globToRegExp("src/{components,hooks,store}/**");
+    expect(re.test("src/components/ui/button.tsx")).toBe(true);
+    expect(re.test("src/hooks/use-mobile.tsx")).toBe(true);
+    expect(re.test("src/store/use-auth.ts")).toBe(true);
+    expect(re.test("src/lib/prisma.ts")).toBe(false);
+    expect(re.test("src/components,hooks/x.ts")).toBe(false); // not a literal comma
+  });
+
+  it("expands nested braces", () => {
+    const re = globToRegExp("src/{db,lib/{auth,services}}/**");
+    expect(re.test("src/db/prisma.ts")).toBe(true);
+    expect(re.test("src/lib/auth/jwt.ts")).toBe(true);
+    expect(re.test("src/lib/services/geocoding.ts")).toBe(true);
+    expect(re.test("src/lib/helper/formatter.ts")).toBe(false);
+  });
+
+  it("rejects unbalanced braces instead of silently matching nothing", () => {
+    expect(() => globToRegExp("src/{a,b/**")).toThrow(/unbalanced/);
+  });
 });

@@ -21,6 +21,65 @@ const CYCLIC_FILES = graph("file", {
 });
 
 describe("evaluate", () => {
+  it("skips type-only imports on forbidden-edge rules when configured", () => {
+    const files = graph("file", {
+      nodes: [{ id: "src/api/a.ts" }, { id: "src/db/d.ts" }],
+      edges: [
+        { from: "src/api/a.ts", to: "src/db/d.ts", kind: "type", weight: 1, line: 1 },
+        { from: "src/api/a.ts", to: "src/db/d.ts", kind: "value", weight: 1, line: 2 },
+      ],
+    });
+    const rule = (ignoreTypeImports: boolean) =>
+      ruleSet({
+        rules: [
+          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/db/**", ignoreTypeImports, rationale: "r" },
+        ],
+      });
+    expect(evaluate(rule(true), { folders: graph("folder"), files }).violations).toHaveLength(1);
+    expect(evaluate(rule(false), { folders: graph("folder"), files }).violations).toHaveLength(2);
+  });
+
+  it("flags rule patterns that match no file, so a typo cannot silently disable a rule", () => {
+    const files = graph("file", { nodes: [{ id: "src/api/a.ts" }, { id: "src/db/d.ts" }] });
+    const { deadPatterns } = evaluate(
+      ruleSet({
+        layers: [{ name: "ghost", match: ["packages/nope/**"] }],
+        rules: [
+          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/typo/**", ignoreTypeImports: false, rationale: "r" },
+        ],
+      }),
+      { folders: graph("folder"), files },
+    );
+    expect(deadPatterns).toEqual([
+      { where: 'layer "ghost"', pattern: "packages/nope/**" },
+      { where: 'rule "fb": to', pattern: "src/typo/**" },
+    ]);
+  });
+
+  it("matches brace patterns against real paths", () => {
+    const files = graph("file", {
+      nodes: [{ id: "src/components/x.tsx" }, { id: "src/db/d.ts" }],
+      edges: [{ from: "src/components/x.tsx", to: "src/db/d.ts", kind: "value", weight: 1, line: 1 }],
+    });
+    const { violations, deadPatterns } = evaluate(
+      ruleSet({
+        rules: [
+          {
+            id: "no-client-db",
+            type: "forbidden-edge",
+            from: "src/{components,hooks}/**",
+            to: "src/db/**",
+            ignoreTypeImports: true,
+            rationale: "r",
+          },
+        ],
+      }),
+      { folders: graph("folder"), files },
+    );
+    expect(deadPatterns).toEqual([]);
+    expect(violations).toHaveLength(1);
+  });
+
   it("reports one violation per cycle at the configured level", () => {
     const { violations } = evaluate(
       ruleSet({ rules: [{ id: "nc", type: "no-cycles", level: "file", rationale: "r" }] }),
@@ -59,7 +118,7 @@ describe("evaluate", () => {
     const { violations } = evaluate(
       ruleSet({
         rules: [
-          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/db/**", rationale: "r", fix: "go via repo" },
+          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/db/**", ignoreTypeImports: false, rationale: "r", fix: "go via repo" },
         ],
       }),
       { folders: graph("folder"), files },
@@ -78,7 +137,7 @@ describe("evaluate", () => {
     const { violations, unusedExemptions } = evaluate(
       ruleSet({
         rules: [
-          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/db/**", rationale: "r" },
+          { id: "fb", type: "forbidden-edge", from: "src/api/**", to: "src/db/**", ignoreTypeImports: false, rationale: "r" },
         ],
         exemptions: [
           { rule: "fb", from: "src/api/a.ts", to: "**", reason: "legacy" },
