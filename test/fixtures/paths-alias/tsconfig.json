@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": { "@lib/*": ["lib/*"] }
+  },
+  "include": ["app.ts", "lib"]
+}

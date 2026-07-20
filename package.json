@@ -1,0 +1,30 @@
+{
+  "name": "dagward",
+  "version": "0.2.0",
+  "description": "Deterministic architecture review for TypeScript projects: dependency graphs at folder, file, and function level.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kanglei1130/dagward.git"
+  },
+  "homepage": "https://github.com/kanglei1130/dagward#readme",
+  "bugs": "https://github.com/kanglei1130/dagward/issues",
+  "keywords": ["architecture", "dependency-graph", "dag", "typescript", "lint", "ai-agents"],
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "dagward": "dist/cli.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/viz-assets','dist/viz-assets',{recursive:true})\"",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "typescript": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "vitest": "^2.0.0"
+  }
+}
