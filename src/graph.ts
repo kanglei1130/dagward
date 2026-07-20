@@ -46,6 +46,9 @@ export interface Graph {
 
 // Iterative Tarjan: explicit frames so deep DFS chains on large repos
 // don't overflow the call stack. Returns SCCs as arrays of node ids.
+// (src/viz-assets/layers.js carries a browser-side twin inside layerAssign —
+// the viz page is assembled by concatenation and can't import this module;
+// keep algorithm fixes in sync.)
 export function stronglyConnectedComponents(
   nodeIds: string[],
   adjacency: Map<string, string[]>,
@@ -103,14 +106,31 @@ export function stronglyConnectedComponents(
   return components;
 }
 
-// A component is a cycle if it has >1 node, or a single node with a self-edge.
-export function findCycles(nodes: GraphNode[], edges: GraphEdge[]): Cycle[] {
+export function edgesToAdjacency(edges: GraphEdge[]): Map<string, string[]> {
   const adjacency = new Map<string, string[]>();
   for (const edge of edges) {
     let targets = adjacency.get(edge.from);
     if (!targets) adjacency.set(edge.from, (targets = []));
     targets.push(edge.to);
   }
+  return adjacency;
+}
+
+// Merge parallel edges by (from, to, kind), summing weights; the first
+// occurrence's line wins.
+export function accumulateEdge(
+  merged: Map<string, GraphEdge>,
+  edge: Omit<GraphEdge, "weight"> & { weight?: number },
+): void {
+  const key = `${edge.from} ${edge.to} ${edge.kind}`;
+  const existing = merged.get(key);
+  if (existing) existing.weight += edge.weight ?? 1;
+  else merged.set(key, { ...edge, weight: edge.weight ?? 1 });
+}
+
+// A component is a cycle if it has >1 node, or a single node with a self-edge.
+export function findCycles(nodes: GraphNode[], edges: GraphEdge[]): Cycle[] {
+  const adjacency = edgesToAdjacency(edges);
   const selfLoops = new Set(edges.filter((e) => e.from === e.to).map((e) => e.from));
   const components = stronglyConnectedComponents(
     nodes.map((n) => n.id),
@@ -149,8 +169,9 @@ export function serializeGraph(graph: Graph): string {
 }
 
 // Copy node annotations from a previous graph onto a freshly built one, by
-// node id. A node that was rebuilt with its own annotation keeps it.
-export function carryAnnotations(prev: Graph, next: Graph): Graph {
+// node id, mutating `next` in place. A node rebuilt with its own annotation
+// keeps it.
+export function carryAnnotations(prev: Graph, next: Graph): void {
   const previous = new Map(
     prev.nodes.filter((n) => n.annotation).map((n) => [n.id, n.annotation!]),
   );
@@ -160,5 +181,4 @@ export function carryAnnotations(prev: Graph, next: Graph): Graph {
       if (annotation) node.annotation = annotation;
     }
   }
-  return next;
 }

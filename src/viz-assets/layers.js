@@ -15,18 +15,19 @@ function displayFolder(id, expanded) {
 
 // Aggregate the compact folder level (nodes [{id, fc, ann}], edges
 // [[f,t,kind,w]]) for an expansion state. Returns the same compact shape
-// plus per-node `hidden` (descendant folders swallowed by the aggregate).
-// Cycles are recomputed on the aggregated graph.
-function aggregateFolders(rawNodes, rawEdges, expanded) {
+// plus per-node `hidden` (descendant folders swallowed by the aggregate)
+// and, when rawCycles is given, per-cycle `cycleReal` flags. An aggregate
+// that is itself a real folder node keeps that node's fields.
+function aggregateFolders(rawNodes, rawEdges, expanded, rawCycles) {
   const displayOf = new Array(rawNodes.length);
   const aggregates = new Map();
   rawNodes.forEach((n, i) => {
     const d = displayFolder(n.id, expanded);
     displayOf[i] = d;
     let a = aggregates.get(d);
-    if (!a) aggregates.set(d, (a = { id: d, fc: 0, ann: null, sideVotes: {}, hidden: 0 }));
+    if (!a) aggregates.set(d, (a = { id: d, fc: 0, self: null, sideVotes: {}, hidden: 0 }));
     a.fc += n.fc || 0;
-    if (n.id === d) a.ann = n.ann || null;
+    if (n.id === d) a.self = n;
     else a.hidden++;
     const side = n.ann && n.ann.side;
     // an aggregate that is itself a real folder keeps its own side
@@ -41,10 +42,10 @@ function aggregateFolders(rawNodes, rawEdges, expanded) {
     for (const k in a.sideVotes) {
       if (a.sideVotes[k] > best) { best = a.sideVotes[k]; side = k; }
     }
-    let ann = a.ann;
+    let ann = (a.self && a.self.ann) || null;
     if (ann && !ann.side && side) ann = Object.assign({}, ann, { side });
     if (!ann && side) ann = { side };
-    return { id: d, fc: a.fc, ann, hidden: a.hidden };
+    return Object.assign({}, a.self, { id: d, fc: a.fc, ann, hidden: a.hidden });
   });
 
   const merged = new Map();
@@ -69,11 +70,29 @@ function aggregateFolders(rawNodes, rawEdges, expanded) {
   });
   const cycles = [...groups.values()].filter((g) => g.length > 1);
 
-  return { nodes, edges, cycles };
+  // An aggregated SCC can be a projection artifact: two groups mutually
+  // importing through DIFFERENT files with no underlying folder cycle.
+  // A displayed cycle is "real" only if some raw cycle spans >= 2 of its
+  // aggregate nodes.
+  let cycleReal = cycles.map(() => true);
+  if (rawCycles) {
+    const projections = rawCycles
+      .map((c) => new Set(c.map((v) => displayFolder(rawNodes[v].id, expanded))))
+      .filter((s) => s.size > 1);
+    cycleReal = cycles.map((members) => {
+      const memberIds = new Set(members.map((m) => nodes[m].id));
+      return projections.some((proj) => [...proj].every((id) => memberIds.has(id)));
+    });
+  }
+
+  return { nodes, edges, cycles, cycleReal };
 }
 
 // Pure layered-layout assignment: top layer = no ingress, bottom = no egress.
 // Kept free of DOM/canvas so a node script can verify the invariants.
+// NOTE: the Tarjan inside layerAssign has a TypeScript twin in
+// src/graph.ts (stronglyConnectedComponents) — this page is assembled by
+// concatenation and can't import it; keep algorithm fixes in sync.
 // edges: [{f,t}] node-index pairs. Returns:
 //   layerOf: Int32Array, -1 for isolated nodes (no edges at all)
 //   layers:  number[][] compacted top→bottom

@@ -1,0 +1,12 @@
+version: 1
+
+rules:
+  - id: no-folder-cycles
+    type: no-cycles
+    level: folder
+    rationale: folder cycles dissolve module boundaries
+
+  - id: no-file-cycles
+    type: no-cycles
+    level: file
+    rationale: import cycles cause initialization-order bugs

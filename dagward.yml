@@ -1,0 +1,38 @@
+version: 1
+
+# CLAUDE.md §6 module order, as enforceable law:
+# cli → viz/report/check → analyzers → project → core (graph, glob)
+layers:
+  - name: core
+    match: ["src/graph.ts", "src/glob.ts"]
+  - name: project
+    match: "src/project.ts"
+  - name: analyzers
+    match: ["src/fileGraph.ts", "src/folderGraph.ts", "src/functionGraph.ts"]
+  - name: render
+    match: ["src/report.ts", "src/viz.ts", "src/check.ts", "src/rules.ts"]
+  - name: cli
+    match: "src/cli.ts"
+
+rules:
+  - id: no-folder-cycles
+    type: no-cycles
+    level: folder
+    rationale: >
+      Folder cycles dissolve module boundaries: every member's dependency
+      cone grows to include the entire cycle.
+
+  - id: no-file-cycles
+    type: no-cycles
+    level: file
+    rationale: >
+      Import cycles cause initialization-order bugs and make files
+      impossible to extract or test in isolation.
+
+  - id: module-order
+    type: layer-order
+    ignore-type-imports: false
+    rationale: >
+      Renderers and the rule engine consume Graph data only — never the
+      compiler API. Keeps report/viz/check testable without a TypeScript
+      project and keeps the analyzers swappable per language.

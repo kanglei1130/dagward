@@ -6,12 +6,17 @@
   const FILE_ANN = new Map(
     DATA.levels.file.nodes.filter((n) => n.ann).map((n) => [n.id, n.ann]),
   );
-  const KINDS = ["value", "type", "dynamic", "call", "reference"];
+  // edge-kind index table: the data blob is authoritative (viz.ts emits it);
+  // the literal is a fallback for older blobs
+  const KINDS = DATA.kinds || ["value", "type", "dynamic", "call", "reference"];
+  // single source for the side vocabulary, in lane order (shared sits
+  // between the sides it serves); legend labels and lane titles both
+  // derive from this table
   const SIDES = [
-    { key: "frontend", label: "frontend", token: "--s-frontend" },
-    { key: "backend", label: "backend", token: "--s-backend" },
-    { key: "shared", label: "shared (pure/isomorphic)", token: "--s-shared" },
-    { key: "tooling", label: "scripts / prisma / data", token: "--s-tooling" },
+    { key: "frontend", label: "frontend", laneTitle: "frontend", token: "--s-frontend" },
+    { key: "shared", label: "shared (pure/isomorphic)", laneTitle: "shared · pure", token: "--s-shared" },
+    { key: "backend", label: "backend", laneTitle: "backend", token: "--s-backend" },
+    { key: "tooling", label: "scripts / prisma / data", laneTitle: "tooling", token: "--s-tooling" },
   ];
   const AREAS = [
     { key: "components", label: "src/components", token: "--c-components", test: (id) => id.startsWith("src/components") },
@@ -47,8 +52,12 @@
   });
 
   // ---- graph model ----
+  function fileIdOf(id) {
+    const hash = id.indexOf("#");
+    return hash >= 0 ? id.slice(0, hash) : id;
+  }
   function areaOf(id) {
-    const fileId = id.includes("#") ? id.slice(0, id.indexOf("#")) : id;
+    const fileId = fileIdOf(id);
     return AREAS.find((a) => a.test(fileId)).key;
   }
   function shortName(id) {
@@ -61,15 +70,20 @@
   function buildLevel(key) {
     const raw =
       key === "folder"
-        ? aggregateFolders(DATA.levels.folder.nodes, DATA.levels.folder.edges, folderExpanded)
+        ? aggregateFolders(
+            DATA.levels.folder.nodes,
+            DATA.levels.folder.edges,
+            folderExpanded,
+            DATA.levels.folder.cycles,
+          )
         : DATA.levels[key];
     const nodes = raw.nodes.map((n, i) => {
-      const ann =
-        n.ann ?? (n.id.includes("#") ? FILE_ANN.get(n.id.slice(0, n.id.indexOf("#"))) : undefined);
+      const ann = n.ann ?? FILE_ANN.get(fileIdOf(n.id));
       return {
         i, id: n.id, fc: n.fc, ln: n.ln, hidden: n.hidden || 0,
         area: areaOf(n.id), label: shortName(n.id) + (n.hidden ? " +" + n.hidden : ""),
         ann, side: ann?.side ?? "shared",
+        query: (n.id + " " + (ann?.summary || "")).toLowerCase(),
         fanIn: 0, fanOut: 0, cycle: -1,
         x: 0, y: 0, vx: 0, vy: 0, r: 4, fixed: false,
       };
@@ -81,21 +95,9 @@
       nodes[e.f].fanOut += 1;
       nodes[e.t].fanIn += 1;
     }
-    // In the aggregated folder view, an SCC can be a projection artifact:
-    // group A and group B mutually import through DIFFERENT files with no
-    // underlying folder cycle. A displayed cycle is "real" only if some raw
-    // folder cycle spans >= 2 of its aggregate nodes.
-    let cycleReal = raw.cycles.map(() => true);
-    if (key === "folder") {
-      const rawFolder = DATA.levels.folder;
-      const realProjections = rawFolder.cycles
-        .map((c) => new Set(c.map((v) => displayFolder(rawFolder.nodes[v].id, folderExpanded))))
-        .filter((s) => s.size > 1);
-      cycleReal = raw.cycles.map((members) => {
-        const ids = new Set(members.map((m) => nodes[m].id));
-        return realProjections.some((proj) => [...proj].every((id) => ids.has(id)));
-      });
-    }
+    // real-vs-projection classification comes from aggregateFolders for the
+    // folder level; other levels only ever show real cycles
+    const cycleReal = raw.cycleReal ?? raw.cycles.map(() => true);
     raw.cycles.forEach((members, ci) => {
       for (const m of members) {
         nodes[m].cycle = ci;
@@ -111,15 +113,8 @@
       const deg = key === "folder" ? (n.fc ?? 1) : n.fanIn + n.fanOut;
       n.r = Math.min(16, 3.5 + 2.2 * Math.sqrt(deg));
     }
-    // initial positions: one wedge per area so the layout starts pre-sorted
-    const areaIndex = Object.fromEntries(AREAS.map((a, i) => [a.key, i]));
-    const spread = 90 * Math.sqrt(nodes.length);
-    for (const n of nodes) {
-      const angle = (areaIndex[n.area] / AREAS.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.9;
-      const rad = spread * (0.25 + Math.random() * 0.75);
-      n.x = Math.cos(angle) * rad;
-      n.y = Math.sin(angle) * rad;
-    }
+    // positions are assigned by applyLayout (layered coordinates, which
+    // also seed the force simulation)
     return { key, nodes, edges, cycles: raw.cycles, cycleReal, alpha: 1 };
   }
 
@@ -173,11 +168,10 @@
     const bands = [];
     let lanes = null;
 
-    const LANE_ORDER = ["frontend", "shared", "backend", "tooling"];
+    const LANE_ORDER = SIDES.map((s) => s.key);
     const laneOf = (v) => (LANE_ORDER.includes(g.nodes[v].side) ? g.nodes[v].side : "shared");
 
     if (splitMode) {
-      const titles = { frontend: "frontend", shared: "shared · pure", backend: "backend", tooling: "tooling" };
       const present = LANE_ORDER.filter((k) => g.nodes.some((n, v) => laneOf(v) === k));
       const cells = layers.map((layer) => {
         const byLane = Object.fromEntries(present.map((k) => [k, []]));
@@ -192,7 +186,12 @@
       let cursor = 0;
       lanes = present.map((k) => {
         const width = maxCell[k] * spacing;
-        const meta = { key: k, title: titles[k], x0: cursor, x1: cursor + width };
+        const meta = {
+          key: k,
+          title: SIDES.find((s) => s.key === k).laneTitle,
+          x0: cursor,
+          x1: cursor + width,
+        };
         cursor += width + gutter;
         return meta;
       });
@@ -263,15 +262,14 @@
         n.y = pos[n.i].y;
         n.vx = n.vy = 0;
       }
-      draw();
+    } else if (G.forcePos) {
+      for (const n of G.nodes) { n.x = G.forcePos[n.i].x; n.y = G.forcePos[n.i].y; }
+      reheat(0.2);
     } else {
-      if (G.forcePos) {
-        for (const n of G.nodes) { n.x = G.forcePos[n.i].x; n.y = G.forcePos[n.i].y; }
-        reheat(0.2);
-      } else {
-        // seed the simulation from the layered arrangement for continuity
-        reheat(1);
-      }
+      // seed the simulation from the layered arrangement for continuity
+      const { pos } = computeLayered(G);
+      for (const n of G.nodes) { n.x = pos[n.i].x; n.y = pos[n.i].y; }
+      reheat(1);
     }
   }
 
@@ -302,10 +300,12 @@
   function tick(g) {
     const nodes = g.nodes, edges = g.edges;
     const alpha = g.alpha;
-    const cell = 60;
+    // numeric cell keys: string keys would allocate ~10 short-lived strings
+    // per node per frame
+    const cell = 60, OFF = 32768, SPAN = 65536;
     const grid = new Map();
     for (const n of nodes) {
-      const k = ((n.x / cell) | 0) + ":" + ((n.y / cell) | 0);
+      const k = (((n.x / cell) | 0) + OFF) * SPAN + (((n.y / cell) | 0) + OFF);
       if (!grid.has(k)) grid.set(k, []);
       grid.get(k).push(n);
     }
@@ -314,7 +314,7 @@
       const cx = (n.x / cell) | 0, cy = (n.y / cell) | 0;
       for (let gx = cx - 1; gx <= cx + 1; gx++) {
         for (let gy = cy - 1; gy <= cy + 1; gy++) {
-          const bucket = grid.get(gx + ":" + gy);
+          const bucket = grid.get((gx + OFF) * SPAN + (gy + OFF));
           if (!bucket) continue;
           for (const m of bucket) {
             if (m === n) continue;
@@ -359,6 +359,8 @@
   let view = { s: 1, tx: 0, ty: 0 };
   let hover = null, selected = null, selectedCycle = -1;
   let searchSet = null;
+  let cvRect = { width: 0, height: 0, left: 0, top: 0 }; // cached in resize()
+  let hlCache; // memoized highlightSets(); undefined = recompute on next draw
   let colorMode = "side";
 
   function nodeColor(n) {
@@ -376,9 +378,9 @@
 
   function resize() {
     const dpr = devicePixelRatio || 1;
-    const { width, height } = cv.getBoundingClientRect();
-    cv.width = width * dpr;
-    cv.height = height * dpr;
+    cvRect = cv.getBoundingClientRect();
+    cv.width = cvRect.width * dpr;
+    cv.height = cvRect.height * dpr;
     draw();
   }
   new ResizeObserver(resize).observe(cv);
@@ -394,16 +396,15 @@
       minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
       minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
     }
-    const rect = cv.getBoundingClientRect();
     const pad = 60;
     const s = Math.min(
       3,
-      (rect.width - pad * 2) / Math.max(80, maxX - minX),
-      (rect.height - pad * 2) / Math.max(80, maxY - minY),
+      (cvRect.width - pad * 2) / Math.max(80, maxX - minX),
+      (cvRect.height - pad * 2) / Math.max(80, maxY - minY),
     );
     view.s = Math.max(0.05, s);
-    view.tx = rect.width / 2 - ((minX + maxX) / 2) * view.s;
-    view.ty = rect.height / 2 - ((minY + maxY) / 2) * view.s;
+    view.tx = cvRect.width / 2 - ((minX + maxX) / 2) * view.s;
+    view.ty = cvRect.height / 2 - ((minY + maxY) / 2) * view.s;
     draw();
   }
 
@@ -430,14 +431,16 @@
 
   function draw() {
     const dpr = devicePixelRatio || 1;
-    const rect = cv.getBoundingClientRect();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.clearRect(0, 0, cvRect.width, cvRect.height);
     if (!G) return;
     ctx.translate(view.tx, view.ty);
     ctx.scale(view.s, view.s);
 
-    const hl = highlightSets();
+    if (hlCache === undefined) hlCache = highlightSets();
+    const hl = hlCache;
+    const dashType = [5 / view.s, 4 / view.s];
+    const dashDynamic = [2 / view.s, 4 / view.s];
     const nodes = G.nodes;
 
     // layer band labels + side lanes
@@ -484,8 +487,8 @@
       ctx.globalAlpha = hl && !emphasized ? 0.05 : e.cycle ? 0.9 : 0.45;
       ctx.strokeStyle = e.cycleReal ? C.critical : emphasized ? C.accent : e.cycle ? C.muted : C.edge;
       ctx.lineWidth = Math.min(4, 0.7 + 0.4 * Math.sqrt(e.w)) / view.s;
-      if (e.kind === "type" || e.kind === "reference") ctx.setLineDash([5 / view.s, 4 / view.s]);
-      else if (e.kind === "dynamic") ctx.setLineDash([2 / view.s, 4 / view.s]);
+      if (e.kind === "type" || e.kind === "reference") ctx.setLineDash(dashType);
+      else if (e.kind === "dynamic") ctx.setLineDash(dashDynamic);
       else ctx.setLineDash([]);
       if (a === b) {
         // self-loop: small circle beside the node
@@ -601,9 +604,9 @@
     let best = null, bestD = Infinity;
     for (const n of G.nodes) {
       const dx = n.x - w.x, dy = n.y - w.y;
-      const d = Math.hypot(dx, dy);
+      const d2 = dx * dx + dy * dy;
       const hit = Math.max(n.r, 6 / view.s);
-      if (d < hit && d < bestD) { best = n; bestD = d; }
+      if (d2 < hit * hit && d2 < bestD) { best = n; bestD = d2; }
     }
     return best;
   }
@@ -611,8 +614,7 @@
   cv.addEventListener("pointerdown", (ev) => {
     cv.setPointerCapture(ev.pointerId);
     userTouched = true;
-    const rect = cv.getBoundingClientRect();
-    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const px = ev.clientX - cvRect.left, py = ev.clientY - cvRect.top;
     const n = nodeAt(px, py);
     moved = false;
     lastPos = { x: px, y: py };
@@ -620,8 +622,7 @@
     else { panning = true; cv.classList.add("dragging"); }
   });
   cv.addEventListener("pointermove", (ev) => {
-    const rect = cv.getBoundingClientRect();
-    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const px = ev.clientX - cvRect.left, py = ev.clientY - cvRect.top;
     if (dragNode) {
       const w = toWorld(px, py);
       dragNode.x = w.x; dragNode.y = w.y;
@@ -639,38 +640,45 @@
       return;
     }
     const n = nodeAt(px, py);
-    hover = n ? n.i : null;
+    const newHover = n ? n.i : null;
     cv.style.cursor = n ? "pointer" : "";
     if (n) {
-      tip.style.display = "block";
-      const flow = `${n.fanIn} in · ${n.fanOut} out`;
-      const extra =
-        G.key === "folder" ? `${n.fc} file${n.fc === 1 ? "" : "s"} · ${flow}` :
-        G.key === "function" ? `${flow}${n.ln ? ` · line ${n.ln}` : ""}` : flow;
-      const cyc =
-        n.cycle >= 0
-          ? n.cycleReal
-            ? ` · <span style="color:var(--critical)">in cycle ${n.cycle}</span>`
-            : ` · <span style="color:var(--muted)">in group loop ${n.cycle} (no real cycle)</span>`
-          : "";
-      const summary = n.ann?.summary ? `<div class="tmeta">${escapeHtml(n.ann.summary)}</div>` : "";
-      tip.innerHTML = `<div class="tid">${escapeHtml(n.id)}</div>${summary}<div class="tmeta">${n.side} · ${AREAS.find(a => a.key === n.area).label} · ${extra}${cyc}</div>`;
-      const tx = Math.min(px + 14, rect.width - 320);
+      // rebuild the tooltip only when the hovered node changes; its
+      // position tracks every move
+      if (newHover !== hover) {
+        const flow = `${n.fanIn} in · ${n.fanOut} out`;
+        const extra =
+          G.key === "folder" ? `${n.fc} file${n.fc === 1 ? "" : "s"} · ${flow}` :
+          G.key === "function" ? `${flow}${n.ln ? ` · line ${n.ln}` : ""}` : flow;
+        const cyc =
+          n.cycle >= 0
+            ? n.cycleReal
+              ? ` · <span style="color:var(--critical)">in cycle ${n.cycle}</span>`
+              : ` · <span style="color:var(--muted)">in group loop ${n.cycle} (no real cycle)</span>`
+            : "";
+        const summary = n.ann?.summary ? `<div class="tmeta">${escapeHtml(n.ann.summary)}</div>` : "";
+        tip.innerHTML = `<div class="tid">${escapeHtml(n.id)}</div>${summary}<div class="tmeta">${n.side} · ${AREAS.find(a => a.key === n.area).label} · ${extra}${cyc}</div>`;
+        tip.style.display = "block";
+      }
+      const tx = Math.min(px + 14, cvRect.width - 320);
       tip.style.left = Math.max(6, tx) + "px";
-      tip.style.top = Math.min(py + 14, rect.height - 70) + "px";
+      tip.style.top = Math.min(py + 14, cvRect.height - 70) + "px";
     } else {
       tip.style.display = "none";
     }
-    draw();
+    if (newHover !== hover) {
+      hover = newHover;
+      draw();
+    }
   });
   cv.addEventListener("pointerup", (ev) => {
     cv.classList.remove("dragging");
     if (dragNode) { dragNode.fixed = false; }
     if (!moved) {
-      const rect = cv.getBoundingClientRect();
-      const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top);
+      const n = nodeAt(ev.clientX - cvRect.left, ev.clientY - cvRect.top);
       selected = n ? n.i : null;
       selectedCycle = -1;
+      hlCache = undefined;
       renderCycleList();
       renderDetails();
       draw();
@@ -686,8 +694,7 @@
   }
   cv.addEventListener("dblclick", (ev) => {
     if (!G || G.key !== "folder") return;
-    const rect = cv.getBoundingClientRect();
-    const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top);
+    const n = nodeAt(ev.clientX - cvRect.left, ev.clientY - cvRect.top);
     if (!n) return;
     if (n.hidden > 0) {
       folderExpanded.add(n.id);
@@ -718,8 +725,7 @@
   cv.addEventListener("wheel", (ev) => {
     ev.preventDefault();
     userTouched = true;
-    const rect = cv.getBoundingClientRect();
-    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const px = ev.clientX - cvRect.left, py = ev.clientY - cvRect.top;
     const factor = Math.exp(-ev.deltaY * 0.0015);
     const s = Math.min(8, Math.max(0.05, view.s * factor));
     view.tx = px - ((px - view.tx) / view.s) * s;
@@ -738,6 +744,7 @@
   document.getElementById("clear").addEventListener("click", clearSelection);
   function clearSelection() {
     selected = null; selectedCycle = -1; searchSet = null;
+    hlCache = undefined;
     document.getElementById("search").value = "";
     document.getElementById("hits").textContent = "";
     renderCycleList();
@@ -783,12 +790,9 @@
   searchInput.addEventListener("input", () => {
     const q = searchInput.value.trim().toLowerCase();
     selected = null; selectedCycle = -1;
+    hlCache = undefined;
     if (!q) { searchSet = null; document.getElementById("hits").textContent = ""; draw(); return; }
-    searchSet = new Set(
-      G.nodes
-        .filter((n) => n.id.toLowerCase().includes(q) || n.ann?.summary?.toLowerCase().includes(q))
-        .map((n) => n.i),
-    );
+    searchSet = new Set(G.nodes.filter((n) => n.query.includes(q)).map((n) => n.i));
     document.getElementById("hits").textContent = String(searchSet.size);
     renderCycleList();
     draw();
@@ -867,6 +871,7 @@
       btn.addEventListener("click", () => {
         selected = null;
         selectedCycle = selectedCycle === ci ? -1 : ci;
+        hlCache = undefined;
         renderCycleList();
         if (selectedCycle >= 0) fitTo(members.map((m) => G.nodes[m]));
         draw();
@@ -886,12 +891,12 @@
       btn.addEventListener("click", () => {
         selected = n.i;
         selectedCycle = -1;
+        hlCache = undefined;
         renderCycleList();
         renderDetails();
-        const rect = cv.getBoundingClientRect();
         view.s = Math.max(view.s, 1.2);
-        view.tx = rect.width / 2 - n.x * view.s;
-        view.ty = rect.height / 2 - n.y * view.s;
+        view.tx = cvRect.width / 2 - n.x * view.s;
+        view.ty = cvRect.height / 2 - n.y * view.s;
         draw();
       });
       el.appendChild(btn);
@@ -927,15 +932,10 @@
         fitTo(G.nodes);
       }, 500);
     }
-    selected = null; selectedCycle = -1; searchSet = null;
-    searchInput.value = "";
-    document.getElementById("hits").textContent = "";
-    renderDetails();
+    clearSelection(); // also re-renders the cycle list and details for the new G
     renderStats();
     buildLegends();
-    renderCycleList();
     renderHubs();
-    draw();
   }
 
   document.getElementById("rootpath").textContent = DATA.root + " · folder / file / function dependency graphs";

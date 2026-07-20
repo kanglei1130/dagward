@@ -1,4 +1,4 @@
-import { stronglyConnectedComponents, type Graph } from "./graph.js";
+import { edgesToAdjacency, stronglyConnectedComponents, type Graph } from "./graph.js";
 
 export interface ReportInput {
   folders: Graph;
@@ -10,10 +10,14 @@ export interface ReportInput {
 
 // Layer depth on the condensation of the folder graph: layer 0 depends on
 // nothing; layer N depends only on layers < N. Cyclic groups share a depth.
+// NOTE: src/viz-assets/layers.js computes layers for the viz with the
+// OPPOSITE orientation (its layer 0 = no ingress, i.e. entry points), plus
+// sink-pinning and empty-layer compaction — "layer 2" here and in viz.html
+// are different things. Keep that in mind when comparing outputs.
 function folderLayers(folders: Graph): Map<number, string[]> {
   const sccs = stronglyConnectedComponents(
     folders.nodes.map((n) => n.id),
-    edgesToAdjacency(folders),
+    edgesToAdjacency(folders.edges),
   );
   const componentOf = new Map<string, number>();
   sccs.forEach((scc, i) => scc.forEach((id) => componentOf.set(id, i)));
@@ -43,15 +47,6 @@ function folderLayers(folders: Graph): Map<number, string[]> {
   });
   for (const members of layers.values()) members.sort();
   return layers;
-}
-
-function edgesToAdjacency(graph: Graph): Map<string, string[]> {
-  const adjacency = new Map<string, string[]>();
-  for (const edge of graph.edges) {
-    if (!adjacency.has(edge.from)) adjacency.set(edge.from, []);
-    adjacency.get(edge.from)!.push(edge.to);
-  }
-  return adjacency;
 }
 
 function fanCounts(graph: Graph): Map<string, { fanIn: number; fanOut: number }> {

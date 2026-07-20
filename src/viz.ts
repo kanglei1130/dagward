@@ -38,6 +38,7 @@ function escapeHtml(text: string): string {
 export function renderVizHtml(input: VizInput): string {
   const data = {
     root: input.files.root,
+    kinds: KINDS, // the edge-kind index table app.js decodes edges with
     levels: {
       folder: compact(input.folders),
       file: compact(input.files),

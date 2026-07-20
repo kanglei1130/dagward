@@ -1,5 +1,12 @@
 import path from "node:path";
-import { buildGraph, type EdgeKind, type Graph, type GraphEdge, type GraphNode } from "./graph.js";
+import {
+  accumulateEdge,
+  buildGraph,
+  type EdgeKind,
+  type Graph,
+  type GraphEdge,
+  type GraphNode,
+} from "./graph.js";
 
 function folderOf(fileId: string): string {
   const dir = path.posix.dirname(fileId);
@@ -23,13 +30,7 @@ export function buildFolderGraph(fileGraph: Graph): Graph {
     if (from === to) continue;
     // dynamic imports are runtime deps: fold into value at folder level
     const kind: EdgeKind = edge.kind === "type" ? "type" : "value";
-    const key = `${from} ${to} ${kind}`;
-    const existing = merged.get(key);
-    if (existing) {
-      existing.weight += edge.weight;
-    } else {
-      merged.set(key, { from, to, kind, weight: edge.weight });
-    }
+    accumulateEdge(merged, { from, to, kind, weight: edge.weight });
   }
 
   const nodes: GraphNode[] = [...fileCounts.entries()].map(([id, fileCount]) => ({
