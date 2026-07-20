@@ -63,9 +63,18 @@ Favor readability and local reasoning over abstraction.
 - Compose only when it removes real duplication.
 - Comments only when the logic is non-obvious.
 
-## 6. Run commands through uv
+## 6. Honor dagward
 
-uv owns the environment (`.venv/`). Invoke tools via `uv run`, not `.venv/bin/python`.
+This repo dogfoods its own tool. The dependency graph is part of the code review.
 
-- `uv run pytest`, `uv run python examples/jira_board_example.py`, `uv run ruff check`.
-- `uv sync` after dependency changes. Never call `.venv/bin/python` or `pip` directly.
+- After any structural change (adding/moving files, changing imports), run
+  `npm run build && node dist/cli.js init .` and confirm the summary still
+  reports no folder- or file-level cycles.
+- Keep the module order one-way:
+  `cli → viz/report → analyzers (fileGraph, folderGraph, functionGraph) → project → graph`.
+  `report.ts` and `viz.ts` consume `Graph` data only — never the compiler API.
+- Node annotations (`annotation` on graph nodes) are contracts: don't write
+  code that violates a file's `shouldNot`; update the annotation when a
+  responsibility legitimately changes. Renaming a file drops its annotation
+  (preservation is by node id) — re-attach it after moves.
+- Tooling: `npm run build` (tsc + viz-assets copy), `npm test` (vitest), Node ≥ 20.
