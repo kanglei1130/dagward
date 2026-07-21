@@ -1,0 +1,533 @@
+{
+  "src/fetch/Fetch.ts": {
+    "summary": "Core async fetch engine: prepares request, applies interceptor/cache/preload/virtual-server/CORS-preflight checks, performs Node http/https request, decodes gzip/deflate/br body streams, follows redirects, and resolves a Response. Registers/ends an AsyncTaskManager task per request and wires signal-abort and socket-close handling.",
+    "inputs": "Options { browserFrame, window, url|Request, init, redirectCount, contentType, disableCache/SameOriginPolicy/Preload, unfilteredHeaders }.",
+    "outputs": "Promise<Response>; throws DOMException on network/security/abort/redirect errors.",
+    "should": "Drive one async HTTP request lifecycle end to end; track it in asyncTaskManager; abort/destroy node request+response and cancel body on signal/manager abort; recurse for redirects and cache revalidation.",
+    "shouldNot": "Do synchronous I/O; be reused for more than one send(); leak the abort listener or a task on any exit path.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/SyncFetch.ts": {
+    "summary": "Synchronous fetch engine mirroring Fetch: runs the HTTP request in a spawned child Node process via SyncFetchScriptBuilder + execFileSync, decodes the body synchronously, handles cache revalidation (sync + async background), virtual server, CORS preflight, and redirects. Rejects stream request bodies.",
+    "inputs": "Options { browserFrame, window, url|Request, init, redirectCount, contentType, disableCache/SameOriginPolicy, unfilteredHeaders }.",
+    "outputs": "ISyncResponse; throws DOMException on error/abort/redirect.",
+    "should": "Block the calling thread to produce a response; reuse cache/preflight/interceptor logic in a sync shape; store results in the response cache.",
+    "shouldNot": "Accept a ReadableStream request body; register async task-manager tasks for its own blocking request.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/Request.ts": {
+    "summary": "WHATWG Request implementation. Normalizes method/mode/credentials/redirect/referrer/signal/URL from input+init, builds the body stream/buffer via FetchBodyUtility, strips forbidden headers, and exposes body-reading methods (arrayBuffer/blob/buffer/text/json/formData) that consume the stream under an AsyncTaskManager task.",
+    "inputs": "input: string|URL|Request, init?: IRequestInit; window injected by class extender.",
+    "outputs": "Request instance; body accessors return Promises; clone() returns a copy.",
+    "should": "Validate method/body/URL/referrerPolicy/redirect; mark bodyUsed once consumed; abort signal + set aborted on task abort.",
+    "shouldNot": "Be constructed outside a Window context; allow a body to be read twice; perform network I/O.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/Response.ts": {
+    "summary": "WHATWG Response implementation. Holds status/headers/body stream, exposes body-reading methods (arrayBuffer/blob/buffer/text/json/formData) that consume the stream under an AsyncTaskManager task and backfill the response cache. Provides static redirect/error/json constructors and clone via stream tee.",
+    "inputs": "body?: TResponseBody, init?: IResponseInit; window injected by class extender.",
+    "outputs": "Response instance; body accessors return Promises.",
+    "should": "Delete Set-Cookie headers; mark bodyUsed once; return empty result when browser frame is torn down; store consumed buffer into cachedResponse.",
+    "shouldNot": "Be constructed outside a Window context; allow body reuse; perform network I/O.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/Headers.ts": {
+    "summary": "WHATWG Headers map. Case-insensitive storage keyed by lowercased name, with append/delete/get/set/has, getSetCookie, and iterators (keys/values/entries/forEach). Comma-joins multi-value headers on read.",
+    "inputs": "init?: THeadersInit (Headers | array of pairs | record).",
+    "outputs": "Header string values, iterators, boolean has.",
+    "should": "Preserve original-cased name while matching case-insensitively; keep multiple appended values; validate array entry shape.",
+    "shouldNot": "Perform network I/O or enforce forbidden-header policy (that lives in the request/response utilities).",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/AbortController.ts": {
+    "summary": "WHATWG AbortController. Owns an AbortSignal and forwards abort(reason) to the signal's internal abort. Window injected by class extender.",
+    "inputs": "abort(reason?).",
+    "outputs": "signal: AbortSignal.",
+    "should": "Delegate abort to its signal.",
+    "shouldNot": "Hold request state or perform I/O.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/AbortSignal.ts": {
+    "summary": "WHATWG AbortSignal EventTarget. Tracks aborted/reason, dispatches an 'abort' event on internal abort, and provides throwIfAborted plus static abort/timeout/any combinators. Read-only aborted/reason getters.",
+    "inputs": "internal abort(reason); static abort/timeout(ms)/any(signals).",
+    "outputs": "aborted/reason; 'abort' events.",
+    "should": "Fire abort only once; set a default DOMException reason; auto-abort on timeout; propagate from any() source signals and stop listening after first.",
+    "shouldNot": "Allow public writes to aborted/reason; abort twice.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/ResourceFetch.ts": {
+    "summary": "Helper for fetching page sub-resources (script/style/module) both async (Fetch) and sync (SyncFetch). Checks the document preload cache first, disables same-origin policy for scripts/styles, and returns resource content + any virtual-server file path.",
+    "inputs": "url, destination ('script'|'style'|'module'), options { credentials, referrerPolicy }; window.",
+    "outputs": "IResourceFetchResponse { content, virtualServerFile }; throws DOMException on non-ok.",
+    "should": "Consume matching preload entries; return empty result if browser frame is gone.",
+    "shouldNot": "Follow the preload path for modules; leave preload entries in the map after use.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/utilities/FetchBodyUtility.ts": {
+    "summary": "Body stream helpers. getBodyStream normalizes any TRequestBody/TResponseBody into { stream, buffer, contentType, contentLength }; cloneBodyStream tees/pipes a body; consumeBodyStream reads a ReadableStream to a Buffer honoring aborted/error flags; toReadableStream/nodeToWebStream wrap values and Node streams.",
+    "inputs": "Body values, window, request/response-like objects with body/aborted/error.",
+    "outputs": "ReadableStreams, Buffers, stream metadata.",
+    "should": "Throw on cloning an already-used body; surface aborted/error during consumption as DOMException; attach nodeStream symbol for later cloning.",
+    "shouldNot": "Perform network requests or mutate headers.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/utilities/FetchCORSUtility.ts": {
+    "summary": "Determines whether a request is cross-origin by comparing hostname (with suffix allowance) and protocol of origin vs target URL; treats about:/javascript: targets as non-CORS.",
+    "inputs": "originURL, targetURL (string|URL).",
+    "outputs": "boolean isCORS.",
+    "should": "Return false for about:/javascript: schemes; compare protocol and hostname.",
+    "shouldNot": "Perform preflight or network I/O.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/utilities/FetchRequestHeaderUtility.ts": {
+    "summary": "Request header policy. removeForbiddenHeaders strips forbidden/proxy-/sec- headers; isHeaderForbidden checks the list; getRequestHeaders builds the final Node header map, adding Accept-Encoding/Connection/User-Agent/Referer/Accept/Content-Length/Content-Type, attaching cookies per credentials mode, and Origin for CORS.",
+    "inputs": "{ browserFrame, window, request, baseHeaders }; Headers to sanitize.",
+    "outputs": "{ [name]: string } header map / boolean.",
+    "should": "Respect credentials mode for cookie inclusion; add Origin only when CORS.",
+    "shouldNot": "Send network requests; retain forbidden headers.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/utilities/FetchResponseHeaderUtility.ts": {
+    "summary": "Parses raw Node response header pairs into a Headers object, diverting Set-Cookie/Set-Cookie2 into the browser context's cookie container instead of exposing them on the response.",
+    "inputs": "{ browserFrame, requestURL, rawHeaders }.",
+    "outputs": "Headers.",
+    "should": "Add parsed cookies to the cookieContainer; append all other headers.",
+    "shouldNot": "Expose Set-Cookie headers on the Headers object.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/utilities/FetchRequestReferrerUtility.ts": {
+    "summary": "Referrer-policy engine. prepareRequest defaults the policy and computes the sent referrer; getInitialReferrer normalizes init referrer; getReferrerPolicyFromHeader parses Referrer-Policy; getSentReferrer applies the policy (origin/strict/same-origin/etc) and trustworthiness checks to produce the Referer value.",
+    "inputs": "originURL, request, headers, window.",
+    "outputs": "referrer URL/'no-referrer'/'client'; policy string.",
+    "should": "Implement the referrer-policy spec including trustworthy-origin downgrade rules.",
+    "shouldNot": "Perform network I/O; leak credentials/hash in referrer.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/utilities/FetchRequestValidationUtility.ts": {
+    "summary": "Static validators for request method (rejects TRACE/TRACK/CONNECT and non-uppercase), body (no body on GET/HEAD), URL (no embedded credentials), referrer policy, redirect value, and supported URL schema (data/http/https). Throws DOMException on failure.",
+    "inputs": "Request / URL / policy / redirect values.",
+    "outputs": "void; throws DOMException.",
+    "should": "Enumerate and reject each invalid case explicitly.",
+    "shouldNot": "Mutate the request or perform I/O.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/utilities/FetchResponseRedirectUtility.ts": {
+    "summary": "Redirect helpers: isRedirect checks 301/302/303/307/308; isMaxRedirectsReached compares count against a max of 20.",
+    "inputs": "statusCode / redirectCount.",
+    "outputs": "boolean.",
+    "should": "Encapsulate redirect status codes and the max-redirect limit.",
+    "shouldNot": "Follow redirects itself.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/utilities/VirtualServerUtility.ts": {
+    "summary": "Maps request URLs to filesystem paths for configured virtual servers and node-module resolution, and builds 404 (async Response / sync ISyncResponse) not-found results. Reads browser settings via WindowBrowserContext.",
+    "inputs": "window, requestURL; settings.fetch.virtualServers / module.resolveNodeModules.",
+    "outputs": "filesystem path or null; 404 responses.",
+    "should": "Match string-prefix and RegExp virtual server URLs and translate to on-disk paths.",
+    "shouldNot": "Read files itself (the fetch classes do the FS read).",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/utilities/SyncFetchScriptBuilder.ts": {
+    "summary": "Builds the Node script string executed in a child process for synchronous fetch: constructs http/https options (headers, cert/key, rejectUnauthorized), sends the request, and prints a JSON blob with statusCode/message/rawHeaders/base64 body or an error.",
+    "inputs": "{ url, method, headers, disableStrictSSL, body }.",
+    "outputs": "string (Node source code).",
+    "should": "Serialize request faithfully and base64-encode body/response for transport.",
+    "shouldNot": "Execute the request itself (SyncFetch runs it).",
+    "side": "backend",
+    "pure": true
+  },
+  "src/fetch/multipart/MultipartFormDataParser.ts": {
+    "summary": "Multipart form-data bridge. streamToFormData reads a body ReadableStream through MultipartReader honoring aborted/error to yield FormData+buffer; formDataToStream serializes a FormData into a multipart body Buffer/stream with a generated boundary and content headers.",
+    "inputs": "window, request/response-like body, contentType; FormData.",
+    "outputs": "{ formData, buffer } / { contentType, contentLength, buffer, stream }.",
+    "should": "Validate multipart content-type and boundary; surface abort/error during read.",
+    "shouldNot": "Perform network I/O.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/multipart/MultipartReader.ts": {
+    "summary": "Incremental byte-level multipart parser. write() feeds chunks through a boundary/header/data state machine accumulating parts; end() flushes trailing data; appends string values or File objects to a FormData.",
+    "inputs": "window, boundary; write(Uint8Array); end().",
+    "outputs": "FormData.",
+    "should": "Parse content-disposition/content-type per part and build File for filename parts.",
+    "shouldNot": "Read from a stream directly (parser owns bytes only, not I/O).",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/data-uri/DataURIParser.ts": {
+    "summary": "Parses a data: URI into { type, charset, buffer }, handling base64 vs ascii encoding, charset metadata, and US-ASCII defaults.",
+    "inputs": "uri string.",
+    "outputs": "{ type, charset, buffer }; throws TypeError on malformed input.",
+    "should": "Decode metadata and payload correctly.",
+    "shouldNot": "Handle non-data URIs or perform I/O.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/certificate/FetchHTTPSCertificate.ts": {
+    "summary": "Static bundled self-signed HTTPS certificate and private key used by Fetch/SyncFetch for TLS on outgoing https requests.",
+    "inputs": "none.",
+    "outputs": "{ cert, key } PEM strings.",
+    "should": "Provide a fixed dev certificate.",
+    "shouldNot": "Be used for real production trust.",
+    "side": "backend",
+    "pure": true
+  },
+  "src/fetch/preload/PreloadEntry.ts": {
+    "summary": "Represents an in-flight or completed preload (<link rel=preload>) resource. Holds response/error/integrity and exposes onResponseAvailable() (a Promise resolved by responseAvailable() when the fetch finishes).",
+    "inputs": "responseAvailable(error, response); onResponseAvailable().",
+    "outputs": "Promise<Response>; stored response/error.",
+    "should": "Resolve or reject the pending callback exactly once when the response arrives.",
+    "shouldNot": "Perform the fetch itself.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/preload/PreloadUtility.ts": {
+    "summary": "Computes the string key (JSON of url/destination/mode/credentialsMode) used to index the document's preload map.",
+    "inputs": "{ url, destination, mode, credentialsMode }.",
+    "outputs": "string key.",
+    "should": "Produce a stable key matching how fetch/resource lookups build it.",
+    "shouldNot": "Store or fetch anything.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/cache/response/ResponseCache.ts": {
+    "summary": "In-memory HTTP response cache keyed by URL with Vary/method matching. Implements Cache-Control (max-age/no-cache/no-store/must-revalidate/stale-while-revalidate), Expires, Last-Modified, ETag, and 304 revalidation updates; marks entries fresh/stale; get/add/clear.",
+    "inputs": "ICacheableRequest / ICacheableResponse; clear options.",
+    "outputs": "ICachedResponse | null.",
+    "should": "Only cache GET/HEAD; honor no-cache/no-store; expire and revalidate correctly; own a ResponseCacheFileSystem.",
+    "shouldNot": "Perform network I/O; cache non-cacheable methods.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/cache/response/ResponseCacheFileSystem.ts": {
+    "summary": "Persists/loads the response cache to/from disk. load reads .json metadata + .data body files into the entries map; save writes non-virtual entries as md5-hashed json+data files, deduplicating by hash.",
+    "inputs": "entries map; load(directory)/save(directory).",
+    "outputs": "Promise<void>; files on disk.",
+    "should": "Skip virtual entries; tolerate missing directories/files; rebuild Headers on load.",
+    "shouldNot": "Persist virtual-server responses or response bodies inline in json.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/fetch/cache/preflight/PreflightResponseCache.ts": {
+    "summary": "In-memory CORS preflight cache keyed by URL. Stores allowOrigin/allowMethods with an expiry from Access-Control-Max-Age; get evicts expired entries; add validates status/headers/no-cache; clear empties it.",
+    "inputs": "ICacheablePreflightRequest / ICacheablePreflightResponse.",
+    "outputs": "ICachedPreflightResponse | null.",
+    "should": "Only cache successful preflights with max-age and allow-origin; expire correctly.",
+    "shouldNot": "Perform the preflight request itself.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/fetch/cache/response/CachedResponseStateEnum.ts": {
+    "summary": "Enum of cached-response freshness states: 'fresh' and 'stale'.",
+    "inputs": "none.",
+    "outputs": "enum values.",
+    "should": "Enumerate cache freshness states.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/IFetchInterceptor.ts": {
+    "summary": "Interface for a fetch interceptor with optional beforeAsyncRequest/beforeSyncRequest/afterAsyncResponse/afterSyncResponse hooks used by Fetch/SyncFetch to modify or short-circuit requests and responses.",
+    "inputs": "hook contexts { request, response?, window }.",
+    "outputs": "Response/ISyncResponse or void (possibly Promise).",
+    "should": "Define the interceptor contract only.",
+    "shouldNot": "Contain implementation.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/IRequestInit.ts": {
+    "summary": "Type for Request/fetch init options: body, headers, method, mode, redirect, signal, referrer, credentials, referrerPolicy.",
+    "inputs": "none (type).",
+    "outputs": "interface.",
+    "should": "Describe the fetch init shape.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/IResponseInit.ts": {
+    "summary": "Type for Response init options: headers, status, statusText.",
+    "inputs": "none (type).",
+    "outputs": "interface.",
+    "should": "Describe the Response init shape.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/ISyncResponse.ts": {
+    "summary": "Type for the plain-object synchronous response returned by SyncFetch: status, statusText, ok, url, redirected, headers, body Buffer, and optional virtualServerFile symbol.",
+    "inputs": "none (type).",
+    "outputs": "interface.",
+    "should": "Describe the sync response shape.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/IResourceFetchResponse.ts": {
+    "summary": "Type returned by ResourceFetch: { content, virtualServerFile }.",
+    "inputs": "none (type).",
+    "outputs": "interface.",
+    "should": "Describe the resource fetch result shape.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/TRequestBody.ts": {
+    "summary": "Union type of accepted request bodies: ArrayBuffer, ArrayBufferView, ReadableStream, string, URLSearchParams, Blob, FormData, or null.",
+    "inputs": "none (type).",
+    "outputs": "type alias.",
+    "should": "Enumerate valid request body types.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/TResponseBody.ts": {
+    "summary": "Union type of accepted response bodies passed to the Response constructor.",
+    "inputs": "none (type).",
+    "outputs": "type alias.",
+    "should": "Enumerate valid response body types.",
+    "shouldNot": "Contain logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch/types/IVirtualServer.ts": {
+    "summary": "Type describing a configured virtual server: { url: string|RegExp, directory } mapping requests to a filesystem directory.",
+    "inputs": "none (type).",
+    "outputs": "interface.",
+    "should": "Describe virtual server config.",
+    "shouldNot": "Contain logic.",
+    "side": "backend",
+    "pure": true
+  },
+  "src/async-task-manager/AsyncTaskManager.ts": {
+    "summary": "Per-BrowserFrame async lifecycle tracker. Registers/ends tasks, timers, and immediates; waitUntilComplete resolves once all are done (using a low-priority setTimeout to flush microtasks); abort/destroy clear timers/immediates and invoke task abort handlers; supports debug tracing of stuck tasks.",
+    "inputs": "browserFrame; startTask/endTask, startTimer/endTimer, startImmediate/endImmediate, waitUntilComplete, abort, destroy.",
+    "outputs": "task IDs; Promises resolved on completion.",
+    "should": "Invoke abort handlers on abort/destroy; refuse new tasks once destroyed; reject waiters on debug timeout.",
+    "shouldNot": "Track work after destroy; resolve waiters while tasks/timers remain.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/async-task-manager/AsyncTaskManagerDebugError.ts": {
+    "summary": "Named Error subclass used solely to capture a stack trace for debug tracing of unfinished async tasks in AsyncTaskManager.",
+    "inputs": "optional message.",
+    "outputs": "Error with name 'AsyncTaskManagerDebugError'.",
+    "should": "Provide a labeled stack for trace output.",
+    "shouldNot": "Be thrown as a real runtime failure.",
+    "side": "backend",
+    "pure": true
+  },
+  "src/browser/Browser.ts": {
+    "summary": "Top-level headless Browser. Creates settings and a default BrowserContext, optionally a process-level exception observer; exposes newPage/newIncognitoContext, waitUntilComplete, abort, and close (which aborts and destroys all contexts).",
+    "inputs": "options { settings, console }.",
+    "outputs": "contexts, pages; Promises for wait/abort/close.",
+    "should": "Fan out lifecycle calls across contexts; report closed when no contexts remain.",
+    "shouldNot": "Perform fetches or DOM work directly.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/BrowserContext.ts": {
+    "summary": "Browser context owning pages, a cookie container, response cache, preflight cache, and module cache. close() aborts/destroys its pages and clears caches (forbidding closing the default context); provides newPage, waitUntilComplete, abort.",
+    "inputs": "browser.",
+    "outputs": "pages, caches; lifecycle Promises.",
+    "should": "Clear caches and cookies on close; fan lifecycle out to pages.",
+    "shouldNot": "Allow the default context to be closed directly.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/BrowserPage.ts": {
+    "summary": "Browser page wrapping a main BrowserFrame, virtual console, and viewport. Delegates content/url/navigation (goto/goBack/goForward/goSteps/reload), evaluate/evaluateModule, waitUntilComplete/waitForNavigation, abort, and close to the main frame; setViewport dispatches resize.",
+    "inputs": "context.",
+    "outputs": "mainFrame, console, viewport; lifecycle Promises.",
+    "should": "Forward lifecycle/navigation to mainFrame; fire resize on viewport change.",
+    "shouldNot": "Own async tasks directly (the frame does).",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/BrowserFrame.ts": {
+    "summary": "Browser frame owning a BrowserWindow, an AsyncTaskManager, child frames, history, and navigation listeners. Exposes content/url getters/setters, waitUntilComplete (awaits its task manager + child frames), waitForNavigation, abort (aborts manager + children), evaluate/evaluateModule, and history navigation via BrowserFrameNavigator.",
+    "inputs": "page.",
+    "outputs": "window, asyncTaskManager, childFrames; Response Promises for navigation.",
+    "should": "Aggregate async completion/abort across itself and child frames; observe exceptions when configured.",
+    "shouldNot": "Perform network I/O itself beyond delegating to navigator/fetch.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/BrowserSettingsFactory.ts": {
+    "summary": "Merges user-supplied optional browser settings over DefaultBrowserSettings (including nested navigation/navigator/device/timer/fetch/debug objects) into a complete IBrowserSettings.",
+    "inputs": "IOptionalBrowserSettings.",
+    "outputs": "IBrowserSettings.",
+    "should": "Deep-merge defaults with overrides.",
+    "shouldNot": "Mutate the shared defaults object.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/utilities/BrowserPageUtility.ts": {
+    "summary": "Static page helpers: getFrames flattens the frame tree; closePage marks the page closed, removes it from its context, closes the virtual console, and destroys the main frame (which destroys its async task manager).",
+    "inputs": "IBrowserPage / IBrowserFrame.",
+    "outputs": "frame list; close Promise.",
+    "should": "Tear down frames when closing a page.",
+    "shouldNot": "Close an already-closed page twice.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/utilities/BrowserFrameFactory.ts": {
+    "summary": "Static frame lifecycle helpers. createChildFrame constructs and links a child frame; destroyFrame marks a frame closed, recursively destroys child frames, awaits the AsyncTaskManager.destroy(), disconnects the exception observer, destroys the window, and clears opener/navigation references.",
+    "inputs": "parent/target IBrowserFrame.",
+    "outputs": "new frame; destroy Promise.",
+    "should": "Destroy async task manager and window on teardown; unlink from parent.",
+    "shouldNot": "Destroy a frame twice; leave child frames or listeners attached.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/utilities/BrowserFrameNavigator.ts": {
+    "summary": "Navigation engine. navigate() handles hash/javascript:/about: schemes, cross-origin/frame validation, history push, swaps in a fresh Window + AsyncTaskManager, destroys the previous window/manager, performs the document Fetch with a timeout AbortController, enforces X-Frame-Options, and writes response HTML under requestAnimationFrame. navigateBack/Forward/Steps/reload drive history.",
+    "inputs": "{ windowClass, frame, url, goToOptions, method, formData, disableHistory }.",
+    "outputs": "Promise<Response|null>.",
+    "should": "Track navigation as ready-state + async tasks/timer; resolve navigation listeners; abort on timeout.",
+    "shouldNot": "Leak the old window/task manager or the timeout timer; navigate a destroyed frame.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/utilities/BrowserExceptionObserver.ts": {
+    "summary": "Process-level uncaughtException/unhandledRejection listener that routes errors to the owning Window (matching by window.Error/DOMException instance), dispatching an ErrorEvent; exits the process if no other handlers exist. observe/disconnect manage per-window subscription and shared listener refcount.",
+    "inputs": "BrowserWindow via observe/disconnect.",
+    "outputs": "dispatched ErrorEvents; process listeners.",
+    "should": "Attach/detach process listeners with refcounting; target the right window.",
+    "shouldNot": "Handle unhandledRejection in the uncaughtException path; leak process listeners after all windows disconnect.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/utilities/BrowserFrameScriptEvaluator.ts": {
+    "summary": "Evaluates code/VM Scripts (evaluate) and modules (evaluateModule, via ModuleFactory / ECMAScript/JSON/CSS modules) in a frame's window context; throws if the frame's window has been destroyed.",
+    "inputs": "frame, script string|Script or module options { url, type, code }.",
+    "outputs": "evaluation result / module exports Promise.",
+    "should": "Run within the frame window's VM context.",
+    "shouldNot": "Evaluate against a destroyed frame.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/detached-browser/DetachedBrowser.ts": {
+    "summary": "Detached Browser used when a Window is constructed without a Browser. Holds the window class, settings, optional exception observer, and a single default DetachedBrowserContext; supports close/abort/waitUntilComplete/newPage but forbids new incognito contexts.",
+    "inputs": "windowClass, options { settings, console }.",
+    "outputs": "contexts; lifecycle Promises.",
+    "should": "Mirror Browser lifecycle for a standalone Window.",
+    "shouldNot": "Create additional contexts.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/detached-browser/DetachedBrowserContext.ts": {
+    "summary": "Detached browser context with cookie container, response/preflight/module caches, and a single default page. close aborts/destroys pages and clears caches (forbidding closing the default context); newPage/waitUntilComplete/abort as in BrowserContext.",
+    "inputs": "DetachedBrowser.",
+    "outputs": "pages, caches; lifecycle Promises.",
+    "should": "Clear caches/cookies on close.",
+    "shouldNot": "Allow closing the default context directly.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/detached-browser/DetachedBrowserPage.ts": {
+    "summary": "Detached browser page wrapping a DetachedBrowserFrame; like BrowserPage but close() also closes the owning browser when it is the sole page (since detached contexts have no external references). Delegates navigation/evaluate/lifecycle to the main frame.",
+    "inputs": "DetachedBrowserContext.",
+    "outputs": "mainFrame, viewport; lifecycle Promises.",
+    "should": "Cascade close to the browser for the last detached page; fire resize on viewport change.",
+    "shouldNot": "Leave an orphaned browser/context after closing the only page.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/browser/detached-browser/DetachedBrowserFrame.ts": {
+    "summary": "Detached browser frame; like BrowserFrame but the window is injected externally and may be absent after teardown (accessors throw when window is unset). Owns an AsyncTaskManager, history, and navigation listeners; waitUntilComplete/abort aggregate across child frames.",
+    "inputs": "DetachedBrowserPage.",
+    "outputs": "window, asyncTaskManager, childFrames; navigation Promises.",
+    "should": "Guard content/url access against a destroyed window; aggregate async completion/abort.",
+    "shouldNot": "Assume window always exists.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/window/BrowserWindow.ts": {
+    "summary": "The window global for a frame and its DOM/timer/fetch host. Sets up the VM context, extends web-API classes, manages document ready-state/load, and implements setTimeout/clearTimeout/setInterval/clearInterval/requestAnimationFrame/cancelAnimationFrame/queueMicrotask (each registered with the frame's AsyncTaskManager and guarded by timer-loop/max limits and error capture), fetch/XHR entry points, and [destroy]() teardown of observers/sockets/document.",
+    "inputs": "browserFrame, options { url }; script-facing global APIs.",
+    "outputs": "timer/immediate IDs; document, navigator, location, storage, etc.",
+    "should": "Track every timer/immediate/microtask/fetch in the async task manager; short-circuit when closed; enforce timer-loop and max-timeout limits; capture callback errors.",
+    "shouldNot": "Run timers/tasks after the window is closed; leak tasks on the async manager.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/window/Window.ts": {
+    "summary": "Public Window entry point. Constructs a DetachedBrowser+page+frame under the hood, applies viewport options, extends BrowserWindow, wires the frame's window reference and exception observer, and exposes the happyDOM DetachedWindowAPI.",
+    "inputs": "options { width, height, url, console, settings }.",
+    "outputs": "Window instance with happyDOM.",
+    "should": "Bootstrap a standalone browser environment for a Window.",
+    "shouldNot": "Require a pre-existing Browser.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/window/GlobalWindow.ts": {
+    "summary": "Window subclass that also exposes Node.js globals (Array, Object, Promise, Buffer, etc.) directly on the window and overrides evaluateScript to use eval and setupVMContext to a no-op (runs in the current realm rather than a VM context).",
+    "inputs": "same as Window.",
+    "outputs": "Window with JS globals; eval-based script evaluation.",
+    "should": "Provide a non-VM global window sharing the host realm.",
+    "shouldNot": "Set up a separate VM context.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/window/CrossOriginBrowserWindow.ts": {
+    "summary": "Restricted window proxy exposed across origins (iframes/popups). Allows only self/top/parent/opener/closed/blur/focus/close/postMessage; accessing location throws a security DOMException. Forwards permitted calls to the target window.",
+    "inputs": "target window, optional parent window.",
+    "outputs": "limited cross-origin window surface.",
+    "should": "Block cross-origin property access and forward safe operations.",
+    "shouldNot": "Expose the target window's DOM/location.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/window/WindowBrowserContext.ts": {
+    "summary": "Internal bridge from a Window to its browser internals without exposing the Browser to scripts. Keeps a static window-internalId -> BrowserFrame map and returns the frame, page, context, browser, settings, or AsyncTaskManager for a window; manages the window/frame relation lifecycle.",
+    "inputs": "window; static set/removeWindowBrowserFrameRelation.",
+    "outputs": "IBrowserFrame/page/context/browser/settings/AsyncTaskManager or null.",
+    "should": "Provide safe internal access and return null when the frame is gone.",
+    "shouldNot": "Expose the Browser as a script-reachable property.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/window/DetachedWindowAPI.ts": {
+    "summary": "The window.happyDOM control surface for detached windows. Exposes settings/virtualConsolePrinter, waitUntilComplete (+deprecated whenAsyncComplete), abort (+deprecated cancelAsync), close, setURL, and viewport/size setters, all delegating to the browser frame/page.",
+    "inputs": "browserFrame.",
+    "outputs": "lifecycle Promises; setters.",
+    "should": "Delegate async-lifecycle and viewport control to the frame/page.",
+    "shouldNot": "Contain its own async task logic.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/window/WindowContextClassExtender.ts": {
+    "summary": "Extends a window with per-window subclasses of web-API implementations (Document, Text, Headers, Request, Response, AbortController, AbortSignal, FormData, XMLHttpRequest, URL, WebSocket, etc.), attaching the window to each class prototype so instances can reach their browser context.",
+    "inputs": "BrowserWindow.",
+    "outputs": "window.* constructor classes bound to the window.",
+    "should": "Bind every exposed class prototype to its owning window.",
+    "shouldNot": "Share class identities across windows.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/window/WindowPageOpenUtility.ts": {
+    "summary": "Implements window.open. Parses window features, resolves the target frame (_self/_top/_parent/_blank/named), navigates it via goto, sets popup/viewport/name and opener relations, and returns a same-origin window or a CrossOriginBrowserWindow (or null for noopener/noreferrer).",
+    "inputs": "browserFrame, options { url, target, features }.",
+    "outputs": "BrowserWindow | CrossOriginBrowserWindow | null.",
+    "should": "Honor noopener/noreferrer and cross-origin restrictions when returning the opened window.",
+    "shouldNot": "Expose a same-origin window reference when noopener/noreferrer is set.",
+    "side": "backend",
+    "pure": false
+  }
+}
