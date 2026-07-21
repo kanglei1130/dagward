@@ -1,0 +1,137 @@
+{
+  "note": "REAL = live general-purpose subagent runs on hihome. tokens = total subagent tokens (incl. ~15k fixed agent overhead). time = wall-clock ms. Same overhead floor both conditions, so within-task comparison is valid.",
+  "runs": [
+    {
+      "task": "1-architecture",
+      "cond": "dagward-cache",
+      "tokens": 21528,
+      "ms": 33715,
+      "calls": 3,
+      "correct": true,
+      "answer": "0 file/folder cycles, 6 fn self-loops; full layer stack",
+      "input": 57269,
+      "output": 2095
+    },
+    {
+      "task": "3-change-impact",
+      "cond": "dagward-cache",
+      "tokens": 16641,
+      "ms": 24681,
+      "calls": 2,
+      "correct": true,
+      "answer": "8 files (graph reverse-cone)",
+      "input": 47219,
+      "output": 643
+    },
+    {
+      "task": "4-diff-review",
+      "cond": "dagward-cache",
+      "tokens": 17032,
+      "ms": 25894,
+      "calls": 3,
+      "correct": true,
+      "answer": "CYCLE",
+      "input": 64282,
+      "output": 1087
+    },
+    {
+      "task": "4-diff-review",
+      "cond": "baseline",
+      "tokens": 16774,
+      "ms": 14844,
+      "calls": 2,
+      "correct": true,
+      "answer": "CYCLE (grep found import at line 1)",
+      "input": 31355,
+      "output": 970
+    },
+    {
+      "task": "1-architecture",
+      "cond": "baseline",
+      "tokens": 23209,
+      "ms": 90719,
+      "calls": 5,
+      "correct": true,
+      "answer": "0 cycles (had to manually resolve apparent db<->lib)",
+      "input": 119509,
+      "output": 5831
+    },
+    {
+      "task": "3-change-impact",
+      "cond": "baseline",
+      "tokens": 30818,
+      "ms": 156386,
+      "calls": 12,
+      "correct": true,
+      "answer": "~5 files (SEMANTIC field-usage reasoning; different scope than structural closure)",
+      "input": 205790,
+      "output": 11172
+    },
+    {
+      "task": "6-add-api-route",
+      "cond": "baseline",
+      "tokens": 23484,
+      "ms": 45424,
+      "calls": 7,
+      "correct": true,
+      "answer": "correct route, getServerSession auth, prisma.user.update; noticed no nickname column",
+      "input": 121144,
+      "output": 2337
+    },
+    {
+      "task": "5-agent-ranks-page",
+      "cond": "baseline",
+      "tokens": 30922,
+      "ms": 60360,
+      "calls": 7,
+      "correct": true,
+      "answer": "full page reusing useAgentLoyalty store, ranked client-side; matched conventions",
+      "input": 123602,
+      "output": 1197
+    },
+    {
+      "task": "7-add-db-field",
+      "cond": "dagward-cache",
+      "tokens": 32539,
+      "ms": 61278,
+      "calls": 4,
+      "correct": true,
+      "answer": "schema diff + mirrored-types edit; noted data-layer files via annotations",
+      "input": 107404,
+      "output": 3852
+    },
+    {
+      "task": "6-add-api-route",
+      "cond": "dagward-cache",
+      "tokens": 21133,
+      "ms": 72738,
+      "calls": 7,
+      "correct": true,
+      "answer": "correct POST route; annotation revealed setlicense GET-mutation flaw",
+      "input": 144973,
+      "output": 3589
+    },
+    {
+      "task": "7-add-db-field",
+      "cond": "baseline",
+      "tokens": 37136,
+      "ms": 80060,
+      "calls": 9,
+      "correct": true,
+      "answer": "schema + types + also wired update.ts/account.ts read+write",
+      "input": 166363,
+      "output": 5004
+    },
+    {
+      "task": "5-agent-ranks-page",
+      "cond": "dagward-cache",
+      "tokens": 30387,
+      "ms": 96815,
+      "calls": 7,
+      "correct": true,
+      "answer": "full page, same useAgentLoyalty store as baseline",
+      "input": 184263,
+      "output": 6347
+    }
+  ]
+}
