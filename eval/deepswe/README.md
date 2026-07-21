@@ -87,11 +87,33 @@ pipeline, not a headline number.
 - To avoid dagward-as-its-own-oracle circularity, pair the delta with one
   independent coupling metric and human review on a sample.
 
+## Docker-free / no-API-key variant (what this trial actually runs)
+
+Docker and a paid API key both turned out to be optional:
+
+- **No Docker:** `grader.py` is env-path-overridable ("for testing/replays"),
+  so `run-verifier.sh` reconstructs the container paths (`/app`, `/tests`,
+  `/logs`, out-of-tree `/opt/jest-ctrf`) on the host and runs the *unmodified*
+  official `tests/test.sh` → `grader.py`. Only the environment is
+  reconstructed, not the grading logic. **Validated:** the ts-pattern golden
+  solution scores `reward=1` (85/85 f2p, 6/6 p2p) through this path.
+- **No API key:** the Claude Code session itself is the agent — one subagent
+  solves each task in its own repo copy (control arm, no dagward), sandboxed so
+  it can't see `solution/` or the held-out tests.
+
+Tooling the native verifiers need (all installed): `jest-ctrf-json-reporter`
++ `jest-environment-node` under `/opt/jest-ctrf` (ts-pattern, awilix),
+`junit-to-ctrf` global + vitest (superjson), python3. awilix also gates on
+`npm run build`.
+
+Scripts: `run-verifier.sh` (core native verifier), `verify-task.sh`
+(orchestrates patch-extract + isolated verify + dagward delta per task).
+
 ## Status
 
 - [x] TS subset inventoried (35 tasks)
 - [x] 3 trial tasks selected + baselines captured (`baselines.json`)
 - [x] structural scorer built + validated (`score.mjs`)
-- [ ] Pier run — CONTROL arm (needs Docker + Claude key)
-- [ ] dagward context injection — TREATMENT arm
-- [ ] structural + efficiency + resolution deltas
+- [x] native Docker-free verifier built + validated on golden solution
+- [x] control-arm agents dispatched (Claude session as agent)
+- [ ] per-task verifier + structural/efficiency deltas (pending agent solves)
