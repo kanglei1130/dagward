@@ -1,0 +1,26 @@
+{
+  "note": "Baseline file-graph structure of the 3 trial repos at their DeepSWE base_commit, before any agent patch. Captured with `dagward init`. The eval measures each arm's patch as a delta against these numbers.",
+  "benchmark": "datacurve-ai/deep-swe",
+  "language": "typescript",
+  "agentModel": "anthropic/claude-opus-4-8",
+  "repos": {
+    "ts-pattern-match-each": {
+      "repository": "https://github.com/gvergnaud/ts-pattern",
+      "base_commit": "f66fc061fde4f764b113ededa09be63dae564159",
+      "files": 18, "importEdges": 49, "fileCycles": 1, "functionCycles": 7,
+      "coneMean": 8.33, "coneMedian": 12, "coneMax": 16
+    },
+    "superjson-error-stack-serialization": {
+      "repository": "https://github.com/flightcontrolhq/superjson",
+      "base_commit": "010c4bdb4b8758844fd44eacf38e42b22eba8aea",
+      "files": 12, "importEdges": 23, "fileCycles": 1, "functionCycles": 2,
+      "coneMean": 5.75, "coneMedian": 6, "coneMax": 11
+    },
+    "awilix-async-container-initialization": {
+      "repository": "https://github.com/jeffijoe/awilix",
+      "base_commit": "82ac179c1de4c216c4e333093044fac643303f0c",
+      "files": 28, "importEdges": 70, "fileCycles": 1, "functionCycles": 4,
+      "coneMean": 6.04, "coneMedian": null, "coneMax": 11
+    }
+  }
+}
