@@ -71,7 +71,7 @@ and a net loss on code-generation tasks.**
   correct route pattern. The DB-field agent flagged that its own change would invalidate the
   `shouldNot` on `update.ts` and should be re-worded — the annotations act as guardrails, not just docs.
 
-**Overall across 6 tasks: 69% of the input tokens, 50% of the output, 51% less time** — but the average
+**Overall across 6 tasks: 69% of the input tokens, 49% of the output, 51% less time** — but the average
 hides the shape: the analytical tasks carry the win.
 
 **Takeaway (matters for the MCP/hook direction):** expose the graph as *commands*
@@ -115,7 +115,7 @@ round-trip per question. Three changes, all in this repo:
 | | before | after |
 |---|--:|--:|
 | Overall input tokens vs baseline | 79% | **69%** |
-| Overall output tokens vs baseline | 66% | **50%** |
+| Overall output tokens vs baseline | 63% | **49%** |
 | Overall time saved | 30% | **51%** |
 | Change-impact | 23% in / 84% faster | **15% in / 95% faster** (156s → 8s, one tool call) |
 | Add an API route | 120% in / 60% *slower* | **79% in / 23% faster** |
