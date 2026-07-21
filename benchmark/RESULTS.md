@@ -23,18 +23,19 @@ Each task is run twice:
 
 ## Results
 
-Tokens summed per API request from each transcript (input incl. cache reads). **% = w/ dagward ÷ w/o
-dagward** (under 100% = dagward cheaper); **time saved** positive = dagward faster. All 12 runs correct.
+Tokens are `input / output`, summed per API request from each transcript (input incl. cache reads).
+**% = w/ dagward ÷ w/o dagward** (under 100% = dagward cheaper); **time saved** positive = dagward
+faster. All 12 runs correct.
 
-| Task | in<br>w/o dagward | in<br>w/ dagward | in % | out<br>w/o dagward | out<br>w/ dagward | out % | time<br>w/o dagward | time<br>w/ dagward | time<br>saved |
-|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| Architecture comprehension | 119,509 | 57,269 | **48%** | 5,831 | 2,095 | **36%** | 91s | 34s | **63%** |
-| Change-impact analysis | 205,790 | 30,958 | **15%** | 11,172 | 317 | **3%** | 156s | 8s | **95%** |
-| Diff architecture review | 31,355 | 52,394 | 167% | 970 | 708 | 73% | 15s | 16s | −6% |
-| Add an agent-ranks page | 123,602 | 110,306 | 89% | 1,197 | 4,472 | 374% | 60s | 65s | −7% |
-| Add an API route | 121,144 | 96,186 | **79%** | 2,337 | 1,321 | 57% | 45s | 35s | **23%** |
-| Add a DB schema field | 166,363 | 184,306 | 111% | 5,004 | 4,227 | 84% | 80s | 61s | **24%** |
-| **Overall** | 767,763 | 531,419 | **69%** | 26,511 | 13,140 | **50%** | 448s | 217s | **51%** |
+| Task | tokens w/o dagward<br>in / out | tokens w/ dagward<br>in / out | %<br>in / out | time<br>w/o | time<br>w/ | time<br>saved |
+|---|--:|--:|--:|--:|--:|--:|
+| Architecture comprehension | 119,509 / 5,831 | 57,269 / 2,095 | **48% / 36%** | 91s | 34s | **63%** |
+| Change-impact analysis | 205,790 / 11,172 | 30,958 / 317 | **15% / 3%** | 156s | 8s | **95%** |
+| Diff architecture review | 31,355 / 970 | 52,394 / 708 | 167% / 73% | 15s | 16s | −6% |
+| Add an agent-ranks page | 123,602 / 1,197 | 110,306 / 4,472 | 89% / 374% | 60s | 65s | −7% |
+| Add an API route | 121,144 / 2,337 | 96,186 / 1,321 | **79% / 57%** | 45s | 35s | **23%** |
+| Add a DB schema field | 166,363 / 5,004 | 184,306 / 4,227 | 111% / 84% | 80s | 61s | **24%** |
+| **Overall** | **767,763 / 26,511** | **531,419 / 13,140** | **69% / 50%** | 448s | 217s | **51%** |
 
 The `w/ dagward` column uses the optimized lookup path: `dagward query <file>` / `dagward affects
 <file>` and a lean grep-able `annotations.jsonl`. Before those optimizations the same tasks measured

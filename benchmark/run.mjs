@@ -36,14 +36,19 @@ const save = (w, wo) => ((wo - w) / wo) * 100; // time savings
 console.log("REAL runs on hihome — w/o dagward (reads source) vs w/ dagward (graph-as-cache)");
 console.log("% = w/ dagward ÷ w/o dagward (under 100% = dagward cheaper) · time saved: positive = faster\n");
 
+// tokens and their ratios travel as one "in / out" cell per condition
+const toks = (input, output) => `${input.toLocaleString()} / ${output.toLocaleString()}`;
+const ratios = (w, wo) => `${pct(w.i, wo.i).toFixed(0)}% / ${pct(w.o, wo.o).toFixed(0)}%`;
+
 const H = [
   padR("Task", 26),
-  padL("in w/o", 8), padL("in w/", 8), padL("in%", 6),
-  padL("out w/o", 8), padL("out w/", 9), padL("out%", 6),
+  padL("tokens w/o (in/out)", 21),
+  padL("tokens w/ (in/out)", 20),
+  padL("% (in/out)", 12),
   padL("t w/o", 7), padL("t w/", 7), padL("t saved", 8),
 ];
 console.log(H.join(" "));
-console.log("-".repeat(101));
+console.log("-".repeat(105));
 
 const acc = { inW: 0, inWo: 0, outW: 0, outWo: 0, tW: 0, tWo: 0 };
 for (const t of ORDER) {
@@ -59,18 +64,20 @@ for (const t of ORDER) {
   console.log(
     [
       padR(NAMES[t], 26),
-      padL(wo.input.toLocaleString(), 8), padL(w.input.toLocaleString(), 8), padL(pct(w.input, wo.input).toFixed(0) + "%", 6),
-      padL(wo.output.toLocaleString(), 8), padL(w.output.toLocaleString(), 9), padL(pct(w.output, wo.output).toFixed(0) + "%", 6),
+      padL(toks(wo.input, wo.output), 21),
+      padL(toks(w.input, w.output), 20),
+      padL(ratios({ i: w.input, o: w.output }, { i: wo.input, o: wo.output }), 12),
       padL((wo.ms / 1000).toFixed(0) + "s", 7), padL((w.ms / 1000).toFixed(0) + "s", 7), padL(save(w.ms, wo.ms).toFixed(0) + "%", 8),
     ].join(" "),
   );
 }
-console.log("-".repeat(101));
+console.log("-".repeat(105));
 console.log(
   [
     padR("TOTAL / overall", 26),
-    padL(acc.inWo.toLocaleString(), 8), padL(acc.inW.toLocaleString(), 8), padL(pct(acc.inW, acc.inWo).toFixed(0) + "%", 6),
-    padL(acc.outWo.toLocaleString(), 8), padL(acc.outW.toLocaleString(), 9), padL(pct(acc.outW, acc.outWo).toFixed(0) + "%", 6),
+    padL(toks(acc.inWo, acc.outWo), 21),
+    padL(toks(acc.inW, acc.outW), 20),
+    padL(ratios({ i: acc.inW, o: acc.outW }, { i: acc.inWo, o: acc.outWo }), 12),
     padL((acc.tWo / 1000).toFixed(0) + "s", 7), padL((acc.tW / 1000).toFixed(0) + "s", 7), padL(save(acc.tW, acc.tWo).toFixed(0) + "%", 8),
   ].join(" "),
 );
