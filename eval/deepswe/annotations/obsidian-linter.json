@@ -1,0 +1,443 @@
+{
+  "src/main.ts": {
+    "summary": "LinterPlugin entry point extending Obsidian Plugin: registers commands, editor/workspace events, save-callback override, settings tab, and orchestrates linting of files, folders, the vault, and paste events.",
+    "inputs": "Obsidian App/Editor/TFile/TFolder events, clipboard data, loaded settings JSON, misspelling files.",
+    "outputs": "Modified note text written to vault/editor, Notices, migrated settings.",
+    "should": "Wire commands/events, delegate text transformation to RulesRunner, diff+dispatch editor changes, handle lint errors, migrate/cleanup settings, manage debounced yaml-timestamp linting.",
+    "shouldNot": "Implement individual rule logic or parse markdown/YAML directly.",
+    "side": "Obsidian vault/editor mutation, notices, file reads/writes, event registration, localStorage/moment locale, network via auto-correct download.",
+    "pure": false
+  },
+  "src/rules.ts": {
+    "summary": "Core Rule and Example classes, RuleType enum, global rule registry (rules array, rulesDict, ruleTypeToRules), plus helpers to register/sort rules, read frontmatter disabled-rules, and wrap lint errors.",
+    "inputs": "Rule metadata (language keys, alias, type, apply fn, options, ignoreTypes), note text for getDisabledRules.",
+    "outputs": "Rule instances, registered rule collections, disabled-rule list, thrown LinterError.",
+    "should": "Define rule abstraction, apply ignore-types before a rule's transform, hold registry, sort by type/key.",
+    "shouldNot": "Perform DOM/UI work or run the full lint pipeline.",
+    "side": "Mutates module-level registry arrays/maps.",
+    "pure": false
+  },
+  "src/rules-runner.ts": {
+    "summary": "RulesRunner orchestrates the ordered lint pipeline: before-rules, the main enabled-rule loop, custom regex replacements, after-rules (yaml title/timestamp/keysort), paste-lint, and standalone yaml-timestamp runs.",
+    "inputs": "RunLinterRulesOptions (oldText, fileInfo, settings, momentLocale, getCurrentTime, defaultMisspellings), custom lint commands.",
+    "outputs": "Transformed text string; executes custom Obsidian commands.",
+    "should": "Sequence rules with special-execution ordering, respect disabled rules, apply custom regexes, build per-run options.",
+    "shouldNot": "Touch the editor/DOM or read files from disk.",
+    "side": "Logging/timing; runs user custom commands via Obsidian command API.",
+    "pure": false
+  },
+  "src/option.ts": {
+    "summary": "Abstract Option class and concrete option types (Boolean/Text/TextArea/MomentFormat/Dropdown/MdFilePicker) plus DropdownRecord; each renders an Obsidian Setting control and persists changes to rule config.",
+    "inputs": "Language keys, default values, rule alias, containerEl, settings, plugin.",
+    "outputs": "Rendered setting controls; updated settings.ruleConfigs values.",
+    "should": "Display option UI, read/write its config key, hide/unhide, expose search info.",
+    "shouldNot": "Define rule transformation logic or the lint order.",
+    "side": "DOM creation, triggers plugin.saveSettings on change.",
+    "pure": false
+  },
+  "src/docs.ts": {
+    "summary": "Build-time script that generates README.md and per-rule-type docs markdown from the registered rules, their examples, and options.",
+    "inputs": "Registered rules, doc template files, additional-info markdown files on disk.",
+    "outputs": "Written README.md and docs/settings/*.md files.",
+    "should": "Iterate rules, format examples/options tables, write documentation files.",
+    "shouldNot": "Run at plugin runtime or affect linting behavior.",
+    "side": "Filesystem reads/writes, console logging.",
+    "pure": false
+  },
+  "src/linter-error.ts": {
+    "summary": "LinterError Error subclass carrying an underlying cause and preserving the original stack.",
+    "inputs": "Message string and causing Error.",
+    "outputs": "Error instance.",
+    "should": "Represent linting failures with a cause chain.",
+    "shouldNot": "Contain lint logic.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/rules-registry.ts": {
+    "summary": "Barrel module whose single glob import (compiled by esbuild plugin) pulls in every rule file so each self-registers via RuleBuilder.register.",
+    "inputs": "None (import side effect over src/rules/*.ts).",
+    "outputs": "Populated global rule registry as a side effect.",
+    "should": "Force-load all rule modules.",
+    "shouldNot": "Contain logic beyond the import.",
+    "side": "Triggers rule registration on import.",
+    "pure": false
+  },
+  "src/settings-data.ts": {
+    "summary": "Defines LinterSettings/CommonStyles types, AfterFileChangeLintTimes enum, and DEFAULT_SETTINGS defaults for the plugin.",
+    "inputs": "None.",
+    "outputs": "Type definitions and default settings object.",
+    "should": "Hold settings schema and defaults.",
+    "shouldNot": "Contain behavior or read/write data.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/translation-helper.ts": {
+    "summary": "Interactive CLI (readline) dev tool to add/list/replace/translate locale string keys, writing updated values back to locale source files.",
+    "inputs": "stdin prompts, locale maps, english key list.",
+    "outputs": "Console output; rewritten locale .ts files.",
+    "should": "Drive translation workflows and persist locale edits.",
+    "shouldNot": "Run inside the plugin runtime.",
+    "side": "stdin/stdout, filesystem writes, process exit.",
+    "pure": false
+  },
+  "src/rules/rule-builder.ts": {
+    "summary": "RuleBuilder framework: RuleBuilderBase (rule/builder maps, applyIfEnabled, no-setting-control tracking) and abstract RuleBuilder plus Example/Option builder classes used by every rule to construct a Rule and its options.",
+    "inputs": "Builder subclass metadata (name/description keys, type, options, examples), settings, text, extraOptions.",
+    "outputs": "Rule instances, [transformedText, isEnabled] tuples, built rule options objects.",
+    "should": "Bridge declarative rule builders to Rule instances, apply enabled rules with option merging, register rules.",
+    "shouldNot": "Render UI or perform file/editor I/O.",
+    "side": "Mutates static builder registries; logging/timing.",
+    "pure": false
+  },
+  "src/utils/logger.ts": {
+    "summary": "Logging wrapper over loglevel: leveled log functions, timing begin/end, optional collection of last-run logs, and log-level conversion helpers.",
+    "inputs": "Messages, timing keys, log level strings/numbers.",
+    "outputs": "Console log output, collected log array, formatted timings.",
+    "should": "Provide leveled/collected logging and timing utilities.",
+    "shouldNot": "Contain lint or UI logic.",
+    "side": "Console output, mutates module-level log state.",
+    "pure": false
+  },
+  "src/utils/nested-keyof.ts": {
+    "summary": "NestedKeyOf recursive dotted-key type plus typed getString/getNumber/getBoolean accessors that resolve a dotted path (with '.'-key handling) within an object.",
+    "inputs": "An object and a dotted path string.",
+    "outputs": "The typed value at the path or null.",
+    "should": "Safely resolve nested string/number/boolean values by path.",
+    "shouldNot": "Mutate the input object.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/utils/auto-correct-misspellings.ts": {
+    "summary": "Downloads the default misspellings markdown into the plugin dir (once) and reads it back, disabling the feature on failure.",
+    "inputs": "Plugin instance (app/manifest), disable callback.",
+    "outputs": "Written misspellings file; file contents string.",
+    "should": "Fetch/persist default misspellings and surface failures.",
+    "shouldNot": "Parse replacements or apply corrections.",
+    "side": "Network request, vault adapter read/write/mkdir, Notice, logging.",
+    "pure": false
+  },
+  "src/utils/ignore-types.ts": {
+    "summary": "Defines IgnoreTypes (mdast/regex/function based) and ignoreListOfTypes, which replaces ignorable regions (code, yaml, links, tags, tables, custom-ignore, etc.) with placeholders, runs a transform, then restores them.",
+    "inputs": "List of ignore types, text, transform function.",
+    "outputs": "Transformed text with ignored regions preserved.",
+    "should": "Protect regions from rule transforms via placeholder round-trip.",
+    "shouldNot": "Implement rule-specific edits.",
+    "side": "None (delegates to mdast/regex/string helpers).",
+    "pure": true
+  },
+  "src/utils/regex.ts": {
+    "summary": "Central library of shared regexes (yaml, code blocks, links, tags, urls, tables, footnotes, callouts, quotes, checklists) plus small helpers to escape dollar signs/regex, strip wiki-link spacing, ensure table spacing, get first H1, and build linter-comment matchers.",
+    "inputs": "Text strings for the helper functions.",
+    "outputs": "Regex constants and derived strings.",
+    "should": "Provide reusable patterns and simple string/regex utilities.",
+    "shouldNot": "Hold stateful or side-effecting logic.",
+    "side": "Imports from mdast/strings; functions are pure.",
+    "pure": true
+  },
+  "src/utils/strings.ts": {
+    "summary": "Large string-manipulation toolkit: insert/replace-between, CR stripping, blank-line insertion around content/blockquotes, hashing, escape-char conversion, custom-replacement table parsing, markdown special-char escape/unescape, and misc counting/index helpers.",
+    "inputs": "Text and positional/config arguments.",
+    "outputs": "Transformed strings, indices, maps, numbers.",
+    "should": "Offer pure text utilities, especially empty-line normalization around blocks.",
+    "shouldNot": "Parse full markdown AST or do I/O.",
+    "side": "Logging on malformed custom-replacement rows.",
+    "pure": true
+  },
+  "src/utils/mdast.ts": {
+    "summary": "Markdown-AST utilities using micromark/mdast: parse-to-AST (LRU cached), position extraction, and transforms for footnotes (move/re-index), emphasis/bold consistency, line breaks, paragraph spacing, list indicators, links, math blocks, code-fence language/spacing, tables, and custom-ignore sections.",
+    "inputs": "Markdown text plus style/format arguments.",
+    "outputs": "Transformed markdown text and position/table index lists.",
+    "should": "Provide AST-backed structural markdown operations used by rules.",
+    "shouldNot": "Handle settings, UI, or file I/O.",
+    "side": "Mutates a module-level LRU parse cache; may throw on malformed footnotes.",
+    "pure": true
+  },
+  "src/utils/yaml.ts": {
+    "summary": "YAML frontmatter utilities: init/get/format YAML block, get/set/remove sections, parse/load via the yaml lib, array-format enums and formatting/splitting, tag/alias conversion, string escaping, and disabled-rules extraction.",
+    "inputs": "YAML/frontmatter text, keys, values, array-format enums, escape chars.",
+    "outputs": "Modified YAML strings, parsed documents/objects, string arrays, escaped values.",
+    "should": "Encapsulate all YAML parsing/formatting for rules.",
+    "shouldNot": "Know about Obsidian app state or run rules.",
+    "side": "May throw on invalid delimiter; otherwise pure.",
+    "pure": true
+  },
+  "src/lang/helpers.ts": {
+    "summary": "Localization core: locale map of all imported locales, current-language state, setLanguage, getTextInLanguage (with English fallback), locale key existence check, and source-file path lookup.",
+    "inputs": "Language code, dotted language string key.",
+    "outputs": "Translated strings, boolean key checks, file paths.",
+    "should": "Resolve UI/log text for the active language with fallback.",
+    "shouldNot": "Contain rule or settings logic.",
+    "side": "Mutates module-level current-language state; warns on missing locale.",
+    "pure": false
+  },
+  "src/lang/validation.ts": {
+    "summary": "Validation helpers for the translation-helper CLI: verify a language is known and that a selected key is valid English and not already translated.",
+    "inputs": "Language code, selected locale, language string key.",
+    "outputs": "ValidationInfo {isValid, validationMsg}.",
+    "should": "Validate translation-tool inputs.",
+    "shouldNot": "Perform translation writes or runtime work.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/cm6/rule-alias-suggester.ts": {
+    "summary": "RuleAliasSuggest EditorSuggest that autocompletes rule aliases within the frontmatter 'disabled rules' key, offering rule names/aliases and inserting them inline or as list items.",
+    "inputs": "Editor cursor/line/frontmatter content, plugin, rules list.",
+    "outputs": "Suggestion trigger info, filtered suggestions, editor replacement text.",
+    "should": "Detect the disabled-rules context and suggest non-disabled rule aliases.",
+    "shouldNot": "Modify settings or run rules.",
+    "side": "Editor text replacement; DOM for suggestion rendering.",
+    "pure": false
+  },
+  "src/ui/helpers.ts": {
+    "summary": "Small DOM helpers to hide/unhide an element via a CSS class and to set element content as HTML fragment or plain text.",
+    "inputs": "HTMLElement and text.",
+    "outputs": "Mutated DOM element.",
+    "should": "Toggle visibility class and inject text/HTML.",
+    "shouldNot": "Contain business logic.",
+    "side": "DOM mutation.",
+    "pure": false
+  },
+  "src/ui/icons.ts": {
+    "summary": "Holds inline Lucide SVG icon sources and exports iconInfo mapping semantic names to {id, source} used for addIcon and setIcon.",
+    "inputs": "None.",
+    "outputs": "iconInfo record of icon ids/sources.",
+    "should": "Provide icon definitions.",
+    "shouldNot": "Register icons or render UI itself.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/ui/settings.ts": {
+    "summary": "SettingTab (PluginSettingTab) building the settings UI: creates the General/rule-type/Custom/Debug tabs, the search bar and zero-state, and manages tab selection and search mode.",
+    "inputs": "App, plugin, rule types/rules.",
+    "outputs": "Rendered settings DOM; tab navigation state.",
+    "should": "Assemble and switch between setting tabs and drive search.",
+    "shouldNot": "Define option persistence or rule logic directly.",
+    "side": "DOM creation/mutation.",
+    "pure": false
+  },
+  "src/ui/components/base-setting.ts": {
+    "summary": "Abstract BaseSetting for generic (non-rule) settings: reads/writes a dotted settings key with defaults from DEFAULT_SETTINGS, typed getters, name/description rendering, and save via plugin.",
+    "inputs": "Container, name/description keys, settings key, plugin, optional beforeSave.",
+    "outputs": "Persisted setting value; rendered name/description.",
+    "should": "Provide shared read/write/save scaffolding for generic setting controls.",
+    "shouldNot": "Define a specific control type (subclasses do).",
+    "side": "DOM; plugin.saveSettings.",
+    "pure": false
+  },
+  "src/ui/components/toggle-setting.ts": {
+    "summary": "ToggleSetting BaseSetting subclass rendering an Obsidian toggle for a boolean settings key, with optional onChange and hide/unhide.",
+    "inputs": "Container, name/desc keys, settings key, plugin, onChange.",
+    "outputs": "Rendered toggle; saved boolean value.",
+    "should": "Bind a boolean setting to a toggle control.",
+    "shouldNot": "Handle non-boolean keys.",
+    "side": "DOM; saveSettings.",
+    "pure": false
+  },
+  "src/ui/components/dropdown-setting.ts": {
+    "summary": "DropdownSetting BaseSetting subclass rendering a dropdown from enum-based or value/description record info and saving the selected string.",
+    "inputs": "Container, name/desc keys, settings key, plugin, DropdownRecordInfo, beforeSave.",
+    "outputs": "Rendered dropdown; saved string value.",
+    "should": "Populate and persist a dropdown-backed setting.",
+    "shouldNot": "Own the option value schema.",
+    "side": "DOM; saveSettings.",
+    "pure": false
+  },
+  "src/ui/components/number-input-setting.ts": {
+    "summary": "NumberInputSetting BaseSetting subclass rendering a numeric text input bound to a number settings key.",
+    "inputs": "Container, name/desc keys, settings key, plugin.",
+    "outputs": "Rendered number input; saved parsed integer.",
+    "should": "Bind a numeric setting to a number input.",
+    "shouldNot": "Validate ranges beyond parseInt.",
+    "side": "DOM; saveSettings.",
+    "pure": false
+  },
+  "src/ui/components/text-box-full.ts": {
+    "summary": "TextBoxFull renders a full-width (usually disabled) textarea with name/description and a hover copy-to-clipboard button; used to display config/log text.",
+    "inputs": "Container, name, description, disabled flag; textarea value.",
+    "outputs": "Rendered textarea + copy control.",
+    "should": "Display read-only text with copy support.",
+    "shouldNot": "Persist settings.",
+    "side": "DOM; clipboard write; Notice on failure.",
+    "pure": false
+  },
+  "src/ui/components/add-custom-row.ts": {
+    "summary": "Abstract AddCustomRow base for list-style settings with a name/description/warning and an add-button that appends entries; subclasses implement showInputEls.",
+    "inputs": "Container, texts, app, saveSettings, onAddInput.",
+    "outputs": "Rendered header/add button and input container.",
+    "should": "Provide add/reset scaffolding for repeatable custom rows.",
+    "shouldNot": "Define specific row content.",
+    "side": "DOM mutation.",
+    "pure": false
+  },
+  "src/ui/components/add-custom-refreshable-row.ts": {
+    "summary": "Abstract AddCustomRefreshableRow like AddCustomRow but also renders a refresh button invoking an async onRefresh; used for the auto-correct file picker.",
+    "inputs": "Container, texts, app, saveSettings, onAddInput, onRefresh.",
+    "outputs": "Rendered header/add+refresh buttons and input container.",
+    "should": "Provide add/refresh/reset scaffolding for repeatable rows.",
+    "shouldNot": "Define specific row content.",
+    "side": "DOM mutation; triggers async refresh callback.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/tab.ts": {
+    "summary": "Abstract Tab base for settings tabs: builds nav button with icon/label and content container, tracks searchable setting info, and toggles display for selection/search modes.",
+    "inputs": "Nav/settings els, tab name, mobile flag, plugin; search info entries.",
+    "outputs": "Rendered nav/content elements; search metadata.",
+    "should": "Provide tab shell, icon/name mapping, and show/hide behavior.",
+    "shouldNot": "Define specific tab contents (subclasses do).",
+    "side": "DOM creation/mutation.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/general-tab.ts": {
+    "summary": "GeneralTab renders general plugin settings: lint-on-save/file-change toggles and dependent notices, locale override, YAML alias/tag/escape common-style controls, math dollar-sign count, and folder/file ignore options.",
+    "inputs": "Nav/settings els, plugin, app.",
+    "outputs": "Rendered general settings controls with search info.",
+    "should": "Compose general settings using shared setting components.",
+    "shouldNot": "Persist values directly beyond the components/plugin.",
+    "side": "DOM; saveSettings; updates moment instance.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/rule-tab.ts": {
+    "summary": "RuleTab renders one settings tab per rule type, listing each rule with a linked heading and displaying its Option controls, hiding sub-options when the rule is disabled.",
+    "inputs": "Nav/settings els, rule-type name, rules array, plugin.",
+    "outputs": "Rendered per-rule option controls and search info.",
+    "should": "Display rule options and initial hidden state.",
+    "shouldNot": "Define option value logic.",
+    "side": "DOM mutation.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/custom-tab.ts": {
+    "summary": "CustomTab renders the Custom settings tab hosting the custom command and custom regex-replace list options.",
+    "inputs": "Nav/settings els, app, plugin.",
+    "outputs": "Rendered custom command/replace option UIs with search info.",
+    "should": "Compose custom-command and custom-replace components.",
+    "shouldNot": "Implement command/regex execution.",
+    "side": "DOM; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/debug-tab.ts": {
+    "summary": "DebugTab renders debug settings: log-level dropdown, read-only config JSON box, log-collection toggle, and a read-only last-run logs box.",
+    "inputs": "Nav/settings els, plugin, loglevel keys, collected logs.",
+    "outputs": "Rendered debug controls and displayed config/logs.",
+    "should": "Expose logging configuration and diagnostic text.",
+    "shouldNot": "Alter rules or file content.",
+    "side": "DOM; setLogLevel; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/tab-components/tab-searcher.ts": {
+    "summary": "TabSearcher renders the settings search input and filters each tab's settings/options by name/description/alias/option values, toggling visibility and headings and a zero-state.",
+    "inputs": "Container, zero-state el, tab map, focus callback; search query.",
+    "outputs": "Rendered search bar; visibility changes across settings.",
+    "should": "Search and show/hide matching settings across tabs.",
+    "shouldNot": "Modify setting values.",
+    "side": "DOM mutation.",
+    "pure": false
+  },
+  "src/ui/modals/lint-confirmation-modal.ts": {
+    "summary": "LintConfirmationModal confirms bulk lint (all files/folder) actions with an optional custom-command warning and a submit action.",
+    "inputs": "App, message/button texts, submit action, warning flag.",
+    "outputs": "Rendered modal; invokes submit action on confirm.",
+    "should": "Warn and gate destructive bulk-lint operations.",
+    "shouldNot": "Perform linting itself.",
+    "side": "DOM; Notice; runs provided async action.",
+    "pure": false
+  },
+  "src/ui/modals/confirm-rule-disable-modal.ts": {
+    "summary": "ConfirmRuleDisableModal prompts the user to confirm disabling a conflicting rule when enabling another, with submit/cancel callbacks.",
+    "inputs": "App, rule name keys, submit/cancel actions.",
+    "outputs": "Rendered modal; invokes chosen callback.",
+    "should": "Confirm conflicting-rule disable decisions.",
+    "shouldNot": "Change settings directly.",
+    "side": "DOM; runs provided callbacks.",
+    "pure": false
+  },
+  "src/ui/modals/parse-results-modal.ts": {
+    "summary": "ParseResultsModal displays the parsed find/replace pairs from a custom auto-correct file, or a warning when none were found.",
+    "inputs": "App, CustomAutoCorrectContent (filePath + replacements map).",
+    "outputs": "Rendered modal table or warning.",
+    "should": "Show parsed custom auto-correct replacements.",
+    "shouldNot": "Parse files or apply corrections.",
+    "side": "DOM creation.",
+    "pure": false
+  },
+  "src/ui/suggesters/suggest.ts": {
+    "summary": "Generic popup suggestion infrastructure: Suggest (keyboard/mouse selection over rendered items) and abstract TextInputSuggest wiring a Popper-positioned suggestion dropdown to an input element.",
+    "inputs": "Owner, input element, app scope; input string.",
+    "outputs": "Rendered suggestion popup; selection callbacks.",
+    "should": "Provide reusable text-input autocomplete scaffolding.",
+    "shouldNot": "Define what is suggested (subclasses do).",
+    "side": "DOM; keymap scope push/pop; Popper instance.",
+    "pure": false
+  },
+  "src/ui/suggesters/command-suggester.ts": {
+    "summary": "CommandSuggester TextInputSuggest over Obsidian commands, filtering by id/name and excluding already-selected commands, setting a commandId attribute on select.",
+    "inputs": "App, input element, commands to exclude; input string.",
+    "outputs": "Filtered Command suggestions; input value + commandId.",
+    "should": "Suggest Obsidian commands for custom lint commands.",
+    "shouldNot": "Execute commands.",
+    "side": "DOM; reads app command list.",
+    "pure": false
+  },
+  "src/ui/suggesters/folder-suggester.ts": {
+    "summary": "FolderSuggester TextInputSuggest over vault folder paths, excluding already-selected folders and matching by substring.",
+    "inputs": "App, input element, folders to exclude; input string.",
+    "outputs": "Filtered folder-path suggestions; selected path.",
+    "should": "Suggest vault folders for ignore settings.",
+    "shouldNot": "Persist settings.",
+    "side": "DOM; reads vault file list.",
+    "pure": false
+  },
+  "src/ui/suggesters/md-file-suggester.ts": {
+    "summary": "MdFileSuggester TextInputSuggest over vault markdown file paths, excluding already-selected files and matching by substring.",
+    "inputs": "App, input element, files to exclude; input string.",
+    "outputs": "Filtered md-file-path suggestions; selected path.",
+    "should": "Suggest markdown files for the auto-correct file picker.",
+    "shouldNot": "Read file contents.",
+    "side": "DOM; reads vault file list.",
+    "pure": false
+  },
+  "src/ui/linter-components/custom-command-option.ts": {
+    "summary": "CustomCommandOption (AddCustomRow) renders the editable list of custom lint commands with a command search, reorder/delete buttons, and enable toggle.",
+    "inputs": "Container, lintCommands array, app, saveSettings.",
+    "outputs": "Rendered command rows; mutated lintCommands.",
+    "should": "Manage the custom-command list UI and persistence.",
+    "shouldNot": "Run the commands.",
+    "side": "DOM; mutates settings array; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/custom-replace-option.ts": {
+    "summary": "CustomReplaceOption (AddCustomRow) renders the editable list of custom regex replacements (label/find/flags/replace) with reorder/delete and enable toggle.",
+    "inputs": "Container, regexes array, app, saveSettings.",
+    "outputs": "Rendered regex rows; mutated regexes.",
+    "should": "Manage the custom-regex list UI and persistence.",
+    "shouldNot": "Apply the regexes to text.",
+    "side": "DOM; mutates settings array; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/files-to-ignore-option.ts": {
+    "summary": "FilesToIgnoreOption (AddCustomRow) renders the editable list of file-ignore regexes (label/match/flags) with delete buttons.",
+    "inputs": "Container, filesToIgnore array, app, saveSettings.",
+    "outputs": "Rendered ignore rows; mutated filesToIgnore.",
+    "should": "Manage the files-to-ignore list UI and persistence.",
+    "shouldNot": "Evaluate ignore matching (main.ts does).",
+    "side": "DOM; mutates settings array; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/folder-ignore-option.ts": {
+    "summary": "FolderIgnoreOption (AddCustomRow) renders the editable list of ignored folders using a folder suggester, with delete buttons.",
+    "inputs": "Container, foldersToIgnore array, app, saveSettings.",
+    "outputs": "Rendered folder rows; mutated foldersToIgnore.",
+    "should": "Manage the folders-to-ignore list UI and persistence.",
+    "shouldNot": "Evaluate ignore matching.",
+    "side": "DOM; mutates settings array; saveSettings.",
+    "pure": false
+  },
+  "src/ui/linter-components/auto-correct-files-picker-option.ts": {
+    "summary": "AutoCorrectFilesPickerOption (AddCustomRefreshableRow) renders the list of custom misspelling files via an md-file suggester, parses each file's replacements, offers a results modal, and refreshes all parsed content.",
+    "inputs": "Container, filesPicked array, app, saveSettings, name/description keys.",
+    "outputs": "Rendered file-picker rows; parsed customReplacements maps.",
+    "should": "Manage custom auto-correct file selection and parsing.",
+    "shouldNot": "Apply the corrections during linting.",
+    "side": "DOM; vault file reads; mutates settings; saveSettings.",
+    "pure": false
+  }
+}

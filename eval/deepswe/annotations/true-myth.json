@@ -1,0 +1,92 @@
+{
+  "src/-private/utils.ts": {
+    "summary": "Internal shared helper utilities used across Maybe, Result, and Task modules: void checks, currying, safe stringification, identity, and a bottom-function type.",
+    "inputs": "Arbitrary unknown values, unary operations plus optional item for currying, values needing string conversion.",
+    "outputs": "Boolean/type guards (isVoid), curried-or-applied results (curry1), strings (safeToString), the value itself (identity), the AnyFunction type.",
+    "should": "Provide tiny reusable primitives; treat null and undefined as void; fall back to JSON.stringify when no usable toString exists.",
+    "shouldNot": "Depend on any sibling module; expose domain types (Maybe/Result/Task); perform IO or async work.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/index.ts": {
+    "summary": "Root barrel entry point re-exporting Maybe, Result, Task, Unit, toolbelt, and standard-schema as both namespaces and default classes for namespace-style consumption.",
+    "inputs": "None; only re-exports from sibling modules.",
+    "outputs": "Named namespace exports (maybe, result, task, toolbelt, standardSchema) and default exports (Maybe, Result, Task, Unit).",
+    "should": "Aggregate the public surface; keep both namespace and default forms; stay a pure re-export.",
+    "shouldNot": "Contain logic, types, or implementation; import internal -private helpers directly.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/maybe.ts": {
+    "summary": "Defines the Maybe<T> type (Just/Nothing) with class implementation plus a full standalone/curried function API for optionality: map, andThen, unwrapOr, match, ap, find, get, transposeArray, etc.",
+    "inputs": "Values to wrap, mapping/predicate/matcher functions, arrays and objects, other Maybe instances, JSON representations.",
+    "outputs": "Maybe instances, unwrapped values, booleans, strings, JSON, and type guards.",
+    "should": "Treat null/undefined as Nothing; share one Nothing singleton; throw on just(null) and Nothing.value; mirror method and free-function forms.",
+    "shouldNot": "Import Result or Task (avoid coupling); mutate wrapped values; leak internal Impl class.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/result.ts": {
+    "summary": "Defines the Result<T,E> type (Ok/Err) with class implementation plus standalone/curried function API for fallible sync operations: map, mapErr, andThen, unwrapOr, match, ap, tryOr, all, transposeAll, flatten.",
+    "inputs": "Success/error values, mapping and matcher functions, callbacks that may throw, arrays of Results, JSON representations.",
+    "outputs": "Result instances, unwrapped values, booleans, strings, JSON, type guards.",
+    "should": "Wrap thrown errors via tryOr/tryOrElse/safe; support Unit for empty ok()/err(); provide method and free-function parity.",
+    "shouldNot": "Import Maybe or Task; perform async work; throw from normal accessors on the matching variant.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/standard-schema.ts": {
+    "summary": "Integrates Standard Schema-compliant validators (Zod, Arktype, Valibot) with True Myth, producing parsers that emit Result (sync) or Task (async) instead of throwing.",
+    "inputs": "A StandardSchemaV1 schema and unknown data to validate.",
+    "outputs": "parserFor -> Result<T, FailureResult>; asyncParserFor -> Task<T, FailureResult>; the StandardSchemaV1 interface/namespace types.",
+    "should": "Return Err/Rejected on validation issues; throw InvalidAsyncSchema when a sync parser gets a Promise; detect success by absence of issues.",
+    "shouldNot": "Bundle any specific schema library; assume presence of a value field alone means success.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/task.ts": {
+    "summary": "Defines the Task<T,E> type (Pending/Resolved/Rejected), a PromiseLike wrapper over Result for async operations that never throw, with combinators: map, andThen, or, match, all, allSettled, any, race, timeout, withRetries.",
+    "inputs": "Executor callbacks, Promises, Results, other Tasks, retry delay strategies, timers/durations, matcher functions.",
+    "outputs": "Task instances, Promises of Result, aggregate/timeout rejection errors, type guards, retry helpers.",
+    "should": "Convert rejections into Rejected instead of throwing; lift Promises/Results into Tasks; track internal Pending/Resolved/Rejected state.",
+    "shouldNot": "Leak raw Promise rejections; throw on normal await; block the event loop.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/task/delay.ts": {
+    "summary": "Retry-delay strategy generators for Task.withRetries: exponential, fibonacci, fixed, immediate, linear, none, plus a jitter helper. A Strategy is an Iterator<number>.",
+    "inputs": "Optional config objects (from, withFactor, withStepSize, at) and a number for jitter.",
+    "outputs": "Infinite Generator<number> yielding millisecond delays capped at MAX_SAFE_INTEGER; jitter returns a randomized number.",
+    "should": "Round non-integral bases via Math.round; cap growth at Number.MAX_SAFE_INTEGER; keep jitter within 0..2n.",
+    "shouldNot": "Perform the actual waiting or retrying; import Task or perform IO.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/test-support.ts": {
+    "summary": "Test-only helpers to bluntly unwrap Maybe and Result values, throwing on the wrong variant, for concise assertions.",
+    "inputs": "A Maybe<T> or Result<T,E> instance.",
+    "outputs": "unwrap -> the Just/Ok value; unwrapErr -> the Err error.",
+    "should": "Distinguish Maybe from Result via isInstance; throw when accessing the absent/wrong variant; stay thin.",
+    "shouldNot": "Be used in production paths; add safe fallback behavior; import Task.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/toolbelt.ts": {
+    "summary": "Cross-conversion utilities between Maybe and Result kept separate so importing either core module need not pull in the other: toMaybe, fromMaybe, fromResult, toOkOrErr, toOkOrElseErr, transposeResult, transposeMaybe.",
+    "inputs": "Maybe or Result instances, error values or error-producing functions.",
+    "outputs": "Converted Maybe or Result instances, including transposed nested forms.",
+    "should": "Require both Maybe and Result; discard Err/error when narrowing to Maybe; support curried forms via curry1.",
+    "shouldNot": "Live inside maybe.ts or result.ts; import Task; mutate inputs.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/unit.ts": {
+    "summary": "Provides Unit, a type-safe, non-interchangeable empty-object stand-in for null/undefined, equivalent to () in functional languages.",
+    "inputs": "None.",
+    "outputs": "The Unit value (Object.create(null) branded via a unique symbol) and the Unit type/interface.",
+    "should": "Be a single concrete safe instance; use nominal branding to stay distinct from other empties.",
+    "shouldNot": "Carry data or methods; be confused with null/undefined; depend on other modules.",
+    "side": "shared",
+    "pure": true
+  }
+}

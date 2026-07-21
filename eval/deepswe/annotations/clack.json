@@ -1,0 +1,353 @@
+{
+  "packages/core/src/index.ts": {
+    "summary": "Public barrel for @clack/core: re-exports every Prompt class, its option/state types, and selected utils (block, isCancel, settings, updateSettings, wrapTextWithPrefix).",
+    "inputs": "None; aggregates sibling module exports.",
+    "outputs": "Named + default re-exports of prompt classes, type aliases, and util functions.",
+    "should": "Stay a thin re-export surface defining the core package's public API.",
+    "shouldNot": "Contain logic, rendering, or IO; introduce implementations.",
+    "side": "shared",
+    "pure": true
+  },
+  "packages/core/src/types.ts": {
+    "summary": "Shared type definitions: ClackState union and the ClackEvents typed emitter interface keyed by event name.",
+    "inputs": "node:readline Key, settings Action types.",
+    "outputs": "Exported ClackState and ClackEvents<TValue> types.",
+    "should": "Declare prompt state and event contract types only.",
+    "shouldNot": "Contain runtime code, values, or IO.",
+    "side": "shared",
+    "pure": true
+  },
+  "packages/core/src/prompts/prompt.ts": {
+    "summary": "Base Prompt class: readline setup, raw-mode keypress handling, typed event emitter, validate-on-submit, cancel/abort handling, and diff-based terminal frame rendering.",
+    "inputs": "PromptOptions (render, validate, input/output streams, signal, initial input).",
+    "outputs": "prompt() Promise resolving to value or CANCEL_SYMBOL; emits events; writes ANSI frames to output.",
+    "should": "Own the input loop, state transitions, subscription plumbing, and render diffing shared by all prompts.",
+    "shouldNot": "Hardcode a specific prompt's UI text or option semantics.",
+    "side": "backend",
+    "pure": false
+  },
+  "packages/core/src/prompts/autocomplete.ts": {
+    "summary": "AutocompletePrompt: type-ahead filtering over options with single/multiple selection, navigation mode, cursor tracking, and placeholder-fill on Tab.",
+    "inputs": "AutocompleteOptions (options list/fn, filter, multiple, placeholder, initialValue).",
+    "outputs": "Filtered options, selectedValues, focusedValue, userInputWithCursor; sets value on return.",
+    "should": "Manage filtering, cursor/navigation, and selection state.",
+    "shouldNot": "Emit styled terminal output or handle raw stream IO directly.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/confirm.ts": {
+    "summary": "ConfirmPrompt: boolean yes/no prompt toggled by cursor/userInput/confirm events, with cursor index derived from value.",
+    "inputs": "ConfirmOptions (active, inactive labels, initialValue).",
+    "outputs": "boolean value; auto-submits on y/n confirm event.",
+    "should": "Track boolean state and react to toggle/confirm events.",
+    "shouldNot": "Render UI or perform IO beyond a cursor move on confirm.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/date.ts": {
+    "summary": "DatePrompt: segmented (year/month/day) date editor with locale/format detection, per-segment digit entry, arrow adjust, min/max bounds, clamping and inline validation.",
+    "inputs": "DateOptions (format, locale, separator, min/max, initial/default Date).",
+    "outputs": "value as Date|undefined, segmentValues, segmentCursor, formattedValue, inlineError.",
+    "should": "Own date segment parsing, navigation, digit placement, and calendar validity.",
+    "shouldNot": "Style output or resolve the final display string.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/group-multiselect.ts": {
+    "summary": "GroupMultiSelectPrompt: multi-select over grouped options, flattening groups into a cursor list, toggling items or whole groups, with optional selectable group headers.",
+    "inputs": "GroupMultiSelectOptions (options record, initialValues, cursorAt, selectableGroups).",
+    "outputs": "value as selected value[]; cursor; group helpers (getGroupItems, isGroupSelected).",
+    "should": "Maintain grouped selection state and cursor movement skipping group headers when needed.",
+    "shouldNot": "Render styled terminal output.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/multi-select.ts": {
+    "summary": "MultiSelectPrompt: checkbox-style selection over a flat option list with toggle, toggle-all ('a'), invert ('i'), disabled-option skipping via findCursor.",
+    "inputs": "MultiSelectOptions (options, initialValues, cursorAt, required).",
+    "outputs": "value as selected value[]; cursor index.",
+    "should": "Manage multi-selection and cursor navigation over enabled options.",
+    "shouldNot": "Style output or do stream IO.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/password.ts": {
+    "summary": "PasswordPrompt: masked text input exposing masked string and cursor-annotated masked view; mirrors userInput into value.",
+    "inputs": "PasswordOptions (mask char).",
+    "outputs": "value string, masked, userInputWithCursor; clear() to reset input.",
+    "should": "Mask displayed input and keep value synced to typed text.",
+    "shouldNot": "Log or persist the plaintext beyond the value; render full frames.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/select-key.ts": {
+    "summary": "SelectKeyPrompt: single-select driven by pressing an option's initial-letter key, with optional case sensitivity; submits immediately on match.",
+    "inputs": "SelectKeyOptions (options with string values, caseSensitive, initialValue).",
+    "outputs": "value string; auto-submits on matching key.",
+    "should": "Map keypresses to option values and submit.",
+    "shouldNot": "Render output or handle arrow navigation.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/select.ts": {
+    "summary": "SelectPrompt: single-choice list navigated with arrows, skipping disabled options via findCursor and tracking the selected value.",
+    "inputs": "SelectOptions (options, initialValue).",
+    "outputs": "value = current option's value; cursor index.",
+    "should": "Move the cursor over enabled options and update value.",
+    "shouldNot": "Style output or do IO.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/prompts/text.ts": {
+    "summary": "TextPrompt: free-text input with cursor-annotated view, initial value seeding, and default-value fallback on finalize.",
+    "inputs": "TextOptions (placeholder, defaultValue, initialValue).",
+    "outputs": "value string; userInputWithCursor; cursor.",
+    "should": "Sync value to typed input and apply default on empty submit.",
+    "shouldNot": "Render styled frames or perform stream IO.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/utils/cursor.ts": {
+    "summary": "findCursor helper: advances a list cursor by delta, wrapping at bounds and skipping disabled options, returning the original when none are enabled.",
+    "inputs": "current cursor, delta, options array with optional disabled flag.",
+    "outputs": "new cursor index (number).",
+    "should": "Compute the next selectable index deterministically.",
+    "shouldNot": "Mutate options or touch IO/state.",
+    "side": "shared",
+    "pure": true
+  },
+  "packages/core/src/utils/index.ts": {
+    "summary": "Core utils barrel + terminal helpers: CANCEL_SYMBOL/isCancel, setRawMode, block() input-blocker, getColumns/getRows, wrapTextWithPrefix; re-exports settings and string utils.",
+    "inputs": "Readable/Writable streams, text, prefixes.",
+    "outputs": "Symbols, dimension numbers, wrapped strings; block returns a cleanup fn and writes ANSI.",
+    "should": "Provide stream/terminal utility functions and re-export settings/string.",
+    "shouldNot": "Implement prompt UI or option logic.",
+    "side": "backend",
+    "pure": false
+  },
+  "packages/core/src/utils/settings.ts": {
+    "summary": "Global in-memory settings: default actions, key aliases (incl. vim), messages, date localization, plus updateSettings merger and isActionKey alias matcher.",
+    "inputs": "ClackSettings updates; raw keys and Action names for matching.",
+    "outputs": "Mutable settings object, Action type, isActionKey boolean.",
+    "should": "Hold configurable defaults and additively merge user overrides.",
+    "shouldNot": "Overwrite existing aliases or do terminal IO.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/core/src/utils/string.ts": {
+    "summary": "diffLines: compares two multiline strings and reports which line indices differ plus before/after line counts.",
+    "inputs": "two strings a, b.",
+    "outputs": "undefined if equal, else {lines, numLinesBefore, numLinesAfter, numLines}.",
+    "should": "Compute the minimal line-diff used by the renderer.",
+    "shouldNot": "Perform IO or format output.",
+    "side": "shared",
+    "pure": true
+  },
+  "packages/prompts/src/index.ts": {
+    "summary": "Public barrel for @clack/prompts: re-exports all prompt/UI helpers and a few @clack/core primitives (settings, isCancel).",
+    "inputs": "None; aggregates sibling modules.",
+    "outputs": "Star re-exports of every prompt and helper module.",
+    "should": "Define the package's public API surface.",
+    "shouldNot": "Contain implementation or IO.",
+    "side": "shared",
+    "pure": true
+  },
+  "packages/prompts/src/common.ts": {
+    "summary": "Shared UI primitives: unicode/CI/TTY detection, box-drawing & status symbol constants, and state-to-styled-symbol mappers plus CommonOptions interface.",
+    "inputs": "State value; environment (unicode support, process.env.CI, output.isTTY).",
+    "outputs": "Symbol string constants, symbol()/symbolBar() styled glyphs, CommonOptions type.",
+    "should": "Centralize glyphs, environment checks, and common option typing.",
+    "shouldNot": "Implement prompt behavior or write to streams.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/autocomplete.ts": {
+    "summary": "autocomplete() and autocompleteMultiselect() wrappers: construct AutocompletePrompt with a default label/hint/value filter and render search UI, match counts, and option lists.",
+    "inputs": "AutocompleteOptions/AutocompleteMultiSelectOptions (message, options, filter, placeholder, maxItems).",
+    "outputs": "Promise of selected value(s) or cancel symbol; terminal frames.",
+    "should": "Wire core AutocompletePrompt to a styled render and default filtering.",
+    "shouldNot": "Reimplement filtering/selection state owned by core.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/box.ts": {
+    "summary": "box(): renders a bordered box around a message with optional title, alignment, padding, width, rounded corners, and custom border formatting.",
+    "inputs": "message, title, BoxOptions (align, width, padding, rounded, formatBorder).",
+    "outputs": "Writes the composed box directly to output stream.",
+    "should": "Compute layout/padding and draw the box.",
+    "shouldNot": "Capture input or manage prompt state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/confirm.ts": {
+    "summary": "confirm(): wraps core ConfirmPrompt to render a yes/no toggle with active/inactive labels, optional vertical layout, and guide bars.",
+    "inputs": "ConfirmOptions (message, active, inactive, initialValue, vertical).",
+    "outputs": "Promise<boolean | symbol>; styled frames.",
+    "should": "Render the confirm UI and delegate state to core.",
+    "shouldNot": "Own the boolean toggle logic.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/date.ts": {
+    "summary": "date(): wraps core DatePrompt, adding min/max/default validation messages and rendering segment placeholders, active-segment highlight, and inline errors.",
+    "inputs": "DateOptions (message, format, locale, min/max, default/initial, validate).",
+    "outputs": "Promise<Date | symbol>; styled frames via renderDate/renderSegment.",
+    "should": "Render date segments and compose validation.",
+    "shouldNot": "Own segment parsing/navigation (core does).",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/group-multi-select.ts": {
+    "summary": "groupMultiselect(): wraps core GroupMultiSelectPrompt, rendering grouped checkbox lists with group headers, spacing, active/selected states, and required validation.",
+    "inputs": "GroupMultiSelectOptions (message, grouped options, initialValues, required, selectableGroups, groupSpacing).",
+    "outputs": "Promise<Value[] | symbol>; styled frames.",
+    "should": "Render grouped multiselect UI and validation.",
+    "shouldNot": "Own grouped selection state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/group.ts": {
+    "summary": "group(): sequentially runs a keyed set of prompt-returning functions, threading prior results and invoking onCancel when a step is cancelled.",
+    "inputs": "PromptGroup map of name->prompt fn, optional onCancel.",
+    "outputs": "Promise resolving to an object of each prompt's result.",
+    "should": "Orchestrate ordered prompts and pass accumulated results.",
+    "shouldNot": "Render UI or manage individual prompt internals.",
+    "side": "shared",
+    "pure": false
+  },
+  "packages/prompts/src/limit-options.ts": {
+    "summary": "limitOptions(): computes a sliding window of option rows to fit terminal height, wrapping lines and inserting top/bottom ellipses when trimmed.",
+    "inputs": "LimitOptionsParams (options, cursor, style fn, maxItems, padding, output).",
+    "outputs": "Array of rendered/wrapped line strings for display.",
+    "should": "Handle viewport windowing, wrapping, and overflow indicators.",
+    "shouldNot": "Fetch input or own selection state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/log.ts": {
+    "summary": "log object: message/info/success/step/warn/error helpers that prefix lines with state symbols and guide bars and write to output.",
+    "inputs": "message string(s), LogMessageOptions (symbol, spacing, output, withGuide).",
+    "outputs": "Writes formatted log lines to the output stream.",
+    "should": "Format and print non-interactive log messages.",
+    "shouldNot": "Read input or hold prompt state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/messages.ts": {
+    "summary": "intro/cancel/outro helpers: print start/cancel/end banner lines with guide-bar prefixes and color to the output stream.",
+    "inputs": "title/message string, CommonOptions (output, withGuide).",
+    "outputs": "Writes banner lines to output.",
+    "should": "Emit the surrounding intro/outro/cancel framing.",
+    "shouldNot": "Manage prompt lifecycle or input.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/multi-select.ts": {
+    "summary": "multiselect(): wraps core MultiSelectPrompt, rendering checkbox options with active/selected/disabled states, hints, wrapped labels, required validation, and windowing.",
+    "inputs": "MultiSelectOptions (message, options, initialValues, maxItems, required, cursorAt).",
+    "outputs": "Promise<Value[] | symbol>; styled frames.",
+    "should": "Render multiselect UI and validation.",
+    "shouldNot": "Own selection/cursor logic (core does).",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/note.ts": {
+    "summary": "note(): renders a boxed, titled note with wrapped, formatted message lines and border glyphs, accounting for format-added width.",
+    "inputs": "message, title, NoteOptions (format, output, withGuide).",
+    "outputs": "Writes the framed note to output.",
+    "should": "Wrap, pad, and draw the note box.",
+    "shouldNot": "Handle input or prompt state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/password.ts": {
+    "summary": "password(): wraps core PasswordPrompt, rendering masked input with guide bars, error/submit/cancel states, and optional clear-on-error.",
+    "inputs": "PasswordOptions (message, mask, validate, clearOnError).",
+    "outputs": "Promise<string | symbol>; styled frames.",
+    "should": "Render masked password UI and delegate to core.",
+    "shouldNot": "Store or log the plaintext.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/path.ts": {
+    "summary": "path(): filesystem path picker built on autocomplete(), listing directory entries by reading the fs as the user types, filtering to dirs when requested.",
+    "inputs": "PathOptions (root, directory, initialValue, message, validate).",
+    "outputs": "Promise of selected path string or cancel symbol.",
+    "should": "Provide fs-backed path suggestions and validation.",
+    "shouldNot": "Reimplement autocomplete rendering/selection.",
+    "side": "backend",
+    "pure": false
+  },
+  "packages/prompts/src/progress-bar.ts": {
+    "summary": "progress(): builds a spinner-backed progress bar with styled fill chars, max/size scaling, and advance()/message() to update completion.",
+    "inputs": "ProgressOptions (style, max, size, spinner opts).",
+    "outputs": "ProgressResult (start/stop/advance/etc.) driving spinner output.",
+    "should": "Track progress value and render the bar via spinner.",
+    "shouldNot": "Own the render loop/timers (spinner does).",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/select.ts": {
+    "summary": "select(): wraps core SelectPrompt, rendering a single-choice radio list with active/selected/disabled/cancelled states, hints, label wrapping, and windowing; defines the Option type.",
+    "inputs": "SelectOptions (message, options, initialValue, maxItems).",
+    "outputs": "Promise<Value | symbol>; styled frames; exported Option<Value> type.",
+    "should": "Render select UI and expose the shared Option type.",
+    "shouldNot": "Own cursor/selection state (core does).",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/select-key.ts": {
+    "summary": "selectKey(): wraps core SelectKeyPrompt, rendering key-badge options and submitting on the matching initial-letter keypress.",
+    "inputs": "SelectKeyOptions (message, options, initialValue, caseSensitive).",
+    "outputs": "Promise<Value | symbol>; styled frames.",
+    "should": "Render key-based select UI and delegate keypress logic to core.",
+    "shouldNot": "Own key-matching/submission logic.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/spinner.ts": {
+    "summary": "spinner(): animated loading indicator with dots/timer modes, CI fallback, process/signal exit hooks, and start/stop/cancel/error/message/clear controls.",
+    "inputs": "SpinnerOptions (indicator, frames, delay, messages, output, signal).",
+    "outputs": "SpinnerResult controlling a setInterval render loop and stream writes.",
+    "should": "Manage the animation loop, timers, and process exit handling.",
+    "shouldNot": "Capture user keystroke input for a value.",
+    "side": "backend",
+    "pure": false
+  },
+  "packages/prompts/src/stream.ts": {
+    "summary": "stream object: async message/info/success/etc. helpers that consume (async) iterables of text and print them with guide-bar prefixes and width-aware wrapping.",
+    "inputs": "Iterable/AsyncIterable<string>, symbol option.",
+    "outputs": "Writes streamed, prefixed text to process.stdout.",
+    "should": "Render incrementally streamed log output.",
+    "shouldNot": "Support custom output writables (relies on stdout.columns) or hold state.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/task-log.ts": {
+    "summary": "taskLog(): buffered task logger that shows live output (TTY), clears on success, retains/prints on error, with grouped sub-buffers, line limits, and ANSI stripping.",
+    "inputs": "TaskLogOptions (title, limit, spacing, retainLog); message/group/success/error calls.",
+    "outputs": "Writes and erases terminal lines; returns a logger handle.",
+    "should": "Manage the log buffer lifecycle and TTY-aware rendering.",
+    "shouldNot": "Prompt for input or own unrelated spinner logic.",
+    "side": "frontend",
+    "pure": false
+  },
+  "packages/prompts/src/task.ts": {
+    "summary": "tasks(): runs an array of async tasks sequentially, driving a spinner per task, skipping disabled ones, and showing each result.",
+    "inputs": "Task[] (title, task fn, enabled), CommonOptions.",
+    "outputs": "Promise<void>; spinner output per task.",
+    "should": "Sequence tasks and surface progress via spinner.",
+    "shouldNot": "Render its own UI beyond the spinner.",
+    "side": "backend",
+    "pure": false
+  },
+  "packages/prompts/src/text.ts": {
+    "summary": "text(): wraps core TextPrompt, rendering a free-text input with placeholder, cursor, guide bars, and error/submit/cancel states.",
+    "inputs": "TextOptions (message, placeholder, default/initial value, validate).",
+    "outputs": "Promise<string | symbol>; styled frames.",
+    "should": "Render the text input UI and delegate value logic to core.",
+    "shouldNot": "Own input tracking/default-fallback logic.",
+    "side": "frontend",
+    "pure": false
+  }
+}

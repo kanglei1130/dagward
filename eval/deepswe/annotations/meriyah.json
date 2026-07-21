@@ -1,0 +1,227 @@
+{
+  "src/chars.ts": {
+    "summary": "Declares the `Chars` const enum: human-readable names for character code points (ASCII, whitespace, surrogates, BMP bounds) used across the lexer.",
+    "inputs": "None (compile-time constant declarations only).",
+    "outputs": "Exports the `Chars` const enum of numeric code-point constants.",
+    "should": "Serve as the single source of named character-code constants for lexer modules.",
+    "shouldNot": "Contain runtime logic, functions, or imports; know about tokens, parsing, or AST.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/common.ts": {
+    "summary": "Shared parser enums (Context, PropertyKind, BindingKind, Origin, AssignmentKind, DestructuringKind, Flags, Hoisted*) plus stateless helpers on the Parser: token consume/optional, binding/function-name validation, label checks, pattern reinterpretation, identifier classification, and the `Location` type.",
+    "inputs": "Parser instance, Context masks, Tokens, BindingKind, AST nodes, label maps.",
+    "outputs": "Enums, `Location` type; helpers returning void/0-1/booleans/mutated nodes.",
+    "should": "Provide reusable bit-mask flags and small validation/consumption utilities depending only on Parser, token, errors, and lexer scan.",
+    "shouldNot": "Implement full statement/expression parsing or touch the compiler/AST-producing grammar; import from parser.ts.",
+    "side": "Advances tokens via nextToken; throws through parser.report; mutates node types in reinterpretToPattern; sets parser flags/destructible.",
+    "pure": false
+  },
+  "src/errors.ts": {
+    "summary": "Defines the `Errors` const enum, an error-message template table, and the `ParseError` class (extends SyntaxError) that formats messages with line/column ranges and %-param substitution.",
+    "inputs": "Error type, start/end Location, substitution params.",
+    "outputs": "`Errors` enum, `ParseError` instances with message/start/end/range/loc/description.",
+    "should": "Centralize all diagnostic message text and error object construction.",
+    "shouldNot": "Decide when errors occur or perform any lexing/parsing control flow.",
+    "side": "ParseError construction only (no throwing here); pure data otherwise.",
+    "pure": false
+  },
+  "src/estree.ts": {
+    "summary": "Type-only declarations of the ESTree AST: Node union, statement/expression/declaration/pattern interfaces, JSX nodes, Comment, SourceLocation, Position.",
+    "inputs": "None (types only).",
+    "outputs": "Exported TypeScript interfaces and type aliases for the produced AST.",
+    "should": "Describe the shape of nodes the parser emits and consumers read.",
+    "shouldNot": "Contain runtime code, values, or logic.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/meriyah.ts": {
+    "summary": "Public library entry point: `parse`, and deprecated `parseScript`/`parseModule` wrappers delegating to parseSource, plus `version` and re-exported `Options` and `ESTree` types.",
+    "inputs": "Source string and optional Options.",
+    "outputs": "ESTree.Program; exported version string and types.",
+    "should": "Offer the stable top-level API and forward to the internal parser.",
+    "shouldNot": "Implement parsing or lexing logic itself.",
+    "side": "Delegates to parseSource (which throws on invalid input).",
+    "pure": false
+  },
+  "src/options.ts": {
+    "summary": "Declares the `Options` interface (sourceType, jsx, ranges, loc, raw, webcompat, onComment/onToken callbacks, deprecated module/globalReturn), NormalizedOptions, callback types, and `normalizeOptions` which applies defaults and legacy flag mapping.",
+    "inputs": "Raw user Options object.",
+    "outputs": "NormalizedOptions with validateRegex defaulted and sourceType inferred from deprecated flags.",
+    "should": "Define parser configuration and normalize deprecated fields.",
+    "shouldNot": "Perform parsing/lexing or validate source content.",
+    "side": "None (builds a new options object).",
+    "pure": false
+  },
+  "src/parser.ts": {
+    "summary": "The recursive-descent parser: `parseSource` plus the full grammar of parse* functions producing the ESTree AST from tokens, handling statements, expressions, classes, modules, JSX, destructuring, scopes, and strict/module semantics.",
+    "inputs": "Source string, Options, initial Context; drives a Parser and its lexer.",
+    "outputs": "ESTree.Program (or throws ParseError).",
+    "should": "Orchestrate tokenization into a spec-compliant AST, enforcing syntax rules and reporting errors.",
+    "shouldNot": "Reimplement low-level character scanning; own error-message text or node type declarations.",
+    "side": "Mutates Parser state, advances tokens, registers scope bindings, invokes onComment/onToken, throws on syntax errors.",
+    "pure": false
+  },
+  "src/token.ts": {
+    "summary": "Defines the `Token` const enum as a bit-packed set of token kinds/attribute flags/precedence, plus `KeywordDescTable` (index→text) and `descKeywordTable` (keyword string→Token).",
+    "inputs": "None (constant declarations/tables).",
+    "outputs": "`Token` enum and the two lookup tables.",
+    "should": "Encode token identity, categories, and precedence for lexer and parser to test via bit masks.",
+    "shouldNot": "Contain scanning/parsing logic or mutable state.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/unicode.ts": {
+    "summary": "Decompresses an embedded Unicode v17 table into a Uint32Array bitmap and exposes `isIDStart`/`isIDContinue` predicates for non-ASCII identifier code points.",
+    "inputs": "A code-point number.",
+    "outputs": "Boolean whether the code point is an ID_Start / ID_Continue character.",
+    "should": "Provide fast Unicode identifier classification via the precomputed lookup.",
+    "shouldNot": "Handle ASCII fast-paths (done in charClassifier) or token/parse logic.",
+    "side": "Builds the lookup table once at module load (module-level computation).",
+    "pure": true
+  },
+  "src/utilities.ts": {
+    "summary": "Single helper `getOwnProperty` returning an own property value or undefined, avoiding prototype-chain lookups on record maps.",
+    "inputs": "A record object and a string/number key.",
+    "outputs": "The own property value or undefined.",
+    "should": "Provide safe own-property access for lookup tables.",
+    "shouldNot": "Grow into a general utility grab-bag or depend on parser internals.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/lexer/charClassifier.ts": {
+    "summary": "Defines `CharFlags`, the ASCII `CharTypes` flag table, `isIdStart`/`isIdPart` boolean arrays, and `isIdentifierStart`/`isIdentifierPart` predicates (ASCII table fast path, delegating to unicode.ts above 0x7F).",
+    "inputs": "A character code point.",
+    "outputs": "Flag lookups and identifier-start/part boolean predicates.",
+    "should": "Classify characters for the lexer, combining ASCII tables with Unicode fallbacks.",
+    "shouldNot": "Scan tokens or mutate parser state.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/lexer/comments.ts": {
+    "summary": "Comment scanning: `skipHashBang`, `skipSingleLineComment`, `skipSingleHTMLComment`, `skipMultiLineComment`, and the `CommentType` enum; advances past comments, tracks newlines, and fires onComment.",
+    "inputs": "Parser, source string, LexerState, comment type, start Location, Context.",
+    "outputs": "Updated LexerState (newline flags); reports errors for unterminated/module HTML comments.",
+    "should": "Consume comment text and invoke the onComment callback with correct spans.",
+    "shouldNot": "Produce tokens or parse grammar.",
+    "side": "Advances parser index/line/column, sets NewLine flags, calls onComment, throws on unterminated comment.",
+    "pure": false
+  },
+  "src/lexer/common.ts": {
+    "summary": "Low-level lexer primitives: `LexerState`/`NumberKind` enums, `advanceChar`, `scanNewLine`, `consumeLineFeed`, `consumePossibleSurrogatePair`, `toHex`, `isExoticECMAScriptWhitespace`, and `convertTokenType`.",
+    "inputs": "Parser instance, character codes, Token.",
+    "outputs": "Advanced char codes, merged surrogate code points, hex values, whitespace booleans, token-type strings.",
+    "should": "Provide shared char-stream cursor movement and small conversions for all scanners.",
+    "shouldNot": "Implement token-specific scanning or grammar.",
+    "side": "advanceChar/scanNewLine/consumeLineFeed mutate parser index/column/line/currentChar/flags; others pure.",
+    "pure": false
+  },
+  "src/lexer/decodeHTML.ts": {
+    "summary": "Holds the HTML named-entity and legacy numeric-code maps and `decodeHTMLStrict`, which replaces `&entity;`/numeric references in JSX text with their characters.",
+    "inputs": "A raw JSX text string.",
+    "outputs": "The string with HTML entities decoded (invalid code points → U+FFFD).",
+    "should": "Decode HTML entities for JSX text tokens.",
+    "shouldNot": "Do lexing/parsing beyond entity substitution.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/lexer/identifier.ts": {
+    "summary": "Identifier scanning: `scanIdentifier`, `scanUnicodeIdentifier`, `scanIdentifierSlowCase` (handling backslash-u escapes and surrogate pairs), `scanPrivateIdentifier`, and internal unicode-escape decoders; resolves keyword vs identifier and escaped-keyword tokens.",
+    "inputs": "Parser, Context, escape/keyword flags.",
+    "outputs": "A Token (Identifier/keyword/escaped variants/PrivateField); sets parser.tokenValue.",
+    "should": "Read identifier characters, apply keyword table, and enforce escaped-keyword rules.",
+    "shouldNot": "Handle non-identifier tokens or parse expressions.",
+    "side": "Advances parser cursor, sets tokenValue/currentChar, throws on invalid escapes/chars.",
+    "pure": false
+  },
+  "src/lexer/index.ts": {
+    "summary": "Barrel module re-exporting lexer entry points: scanSingleToken/nextToken, skipHashBang, and common helpers (advanceChar, consumeLineFeed, scanNewLine, LexerState, convertTokenType).",
+    "inputs": "None.",
+    "outputs": "Re-exported lexer functions/enums.",
+    "should": "Give the parser a single import surface for the lexer.",
+    "shouldNot": "Contain logic of its own.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/lexer/jsx.ts": {
+    "summary": "JSX-specific scanning: `scanJSXAttributeValue`, `scanJSXString`, `nextJSXToken` (JSXText with HTML-entity decoding), and `rescanJSXIdentifier` (allowing hyphens).",
+    "inputs": "Parser, Context.",
+    "outputs": "JSX Tokens (StringLiteral/LessThan/LeftBrace/JSXText/Identifier); sets tokenValue/tokenRaw.",
+    "should": "Tokenize JSX text, strings, and hyphenated identifiers distinctly from normal JS scanning.",
+    "shouldNot": "Parse JSX grammar/build nodes or handle non-JSX tokens.",
+    "side": "Advances parser cursor, sets token state, decodes entities, throws on unterminated string/empty text.",
+    "pure": false
+  },
+  "src/lexer/numeric.ts": {
+    "summary": "`scanNumber` scans decimal/float/hex/octal/binary/implicit-octal/BigInt literals with numeric-separator and strict-mode handling; helper `scanDecimalDigitsOrSeparator` collects digits skipping underscores.",
+    "inputs": "Parser, Context, NumberKind seed.",
+    "outputs": "Token.NumericLiteral or BigIntLiteral; sets tokenValue (number/bigint) and tokenRaw.",
+    "should": "Parse all numeric literal forms and enforce separator/strict/identifier-after-number rules.",
+    "shouldNot": "Scan non-numeric tokens.",
+    "side": "Advances parser cursor, sets tokenValue/tokenRaw/flags, throws on malformed literals.",
+    "pure": false
+  },
+  "src/lexer/regexp.ts": {
+    "summary": "`scanRegularExpression` scans a regex body and flags (checking duplicates/validity), and `validate` compiles it via RegExp, returning the RegExp, null, or reporting per options.validateRegex.",
+    "inputs": "Parser; pattern and flags strings.",
+    "outputs": "Token.RegularExpression; sets tokenRegExp {pattern,flags} and tokenValue (RegExp|null).",
+    "should": "Tokenize regular-expression literals and optionally validate them.",
+    "shouldNot": "Parse regex internals beyond flag checks or handle other tokens.",
+    "side": "Advances parser cursor, sets token state, throws on unterminated/duplicate/invalid regex.",
+    "pure": false
+  },
+  "src/lexer/scan.ts": {
+    "summary": "Core tokenizer: `nextToken` and `scanSingleToken` with the ASCII `TokenLookup` table; dispatches whitespace, comments, punctuators/operators (multi-char), and delegates to the specialized identifier/number/string/template/regex scanners.",
+    "inputs": "Parser, Context, LexerState.",
+    "outputs": "The next Token; updates parser token/flags/position via setToken.",
+    "should": "Drive the main scan loop and route each start character to the right scanner.",
+    "shouldNot": "Implement each literal's detailed scanning (delegated) or parse grammar.",
+    "side": "Mutates parser position/flags/token, skips comments/whitespace, throws on illegal characters.",
+    "pure": false
+  },
+  "src/lexer/string.ts": {
+    "summary": "`scanString` scans string literals; `parseEscape` decodes escape sequences (octal, hex, \\u, \\u{}, line continuations, 8/9) returning a code point or negative Escape code; `handleStringError` maps Escape codes to reported errors.",
+    "inputs": "Parser, Context, quote/first char, isTemplate flag.",
+    "outputs": "Token.StringLiteral; escape code points or Escape sentinels; sets tokenValue/tokenRaw.",
+    "should": "Read string bodies and decode/validate escape sequences with strict/webcompat rules.",
+    "shouldNot": "Scan templates directly (though shared by template.ts) or other tokens.",
+    "side": "Advances parser cursor, sets tokenValue/flags, throws on invalid/unterminated strings.",
+    "pure": false
+  },
+  "src/lexer/template.ts": {
+    "summary": "`scanTemplate` scans template spans/continuations with escape handling and tagged-template tolerance for bad escapes (via `scanBadTemplate`); `scanTemplateTail` resumes after `}`.",
+    "inputs": "Parser, Context.",
+    "outputs": "Token.TemplateSpan or TemplateContinuation; sets tokenValue (cooked, or null) and tokenRaw.",
+    "should": "Tokenize template literal sections, reusing string escape logic.",
+    "shouldNot": "Parse template-embedded expressions or other token kinds.",
+    "side": "Advances parser cursor, sets token state, throws on unterminated template.",
+    "pure": false
+  },
+  "src/parser/parser.ts": {
+    "summary": "The `Parser` class holding mutable lex/parse state (position, current token, flags, exported names, scopes) plus methods: token get/set with onToken buffering, `finishNode` (ranges/loc), `report`, scope/private-scope factories, node cloning, and comment/token push adapters.",
+    "inputs": "Source string and raw Options; various state mutations from lexer/parser.",
+    "outputs": "Parser state, finished nodes with location info, ParseError throws, Scope/PrivateScope instances.",
+    "should": "Own parser/lexer state and provide node-finishing, error, and scope construction services.",
+    "shouldNot": "Contain grammar rules or character scanning.",
+    "side": "Mutable instance state; invokes onToken/onComment; throws via report.",
+    "pure": false
+  },
+  "src/parser/private-scope.ts": {
+    "summary": "`PrivateScope` class tracking private-identifier declarations and references per class body, enforcing duplicate/getter-setter/static rules and validating unresolved references.",
+    "inputs": "Parser, parent scope, private name, PropertyKind.",
+    "outputs": "Recorded private identifiers/refs; membership/definition booleans.",
+    "should": "Model private-name lexical scoping and report duplicate/undefined private identifiers.",
+    "shouldNot": "Track ordinary variable bindings (that is Scope) or parse class bodies.",
+    "side": "Mutates its maps/refs; reports duplicate errors; throws on undefined private refs during validation.",
+    "pure": false
+  },
+  "src/parser/scope.ts": {
+    "summary": "`Scope` class and `ScopeKind` enum implementing lexical/var binding tracking with duplicate-binding, webcompat, catch-shadowing, and function-body redeclaration rules; plus `createArrowHeadParsingScope` helper.",
+    "inputs": "Parser, Context, binding name, BindingKind, Origin, ScopeKind, parent scope.",
+    "outputs": "Scope instances with variableBindings maps; recorded/thrown binding errors.",
+    "should": "Model variable/block scoping and enforce binding-collision rules.",
+    "shouldNot": "Handle private identifiers (that is PrivateScope) or drive parsing.",
+    "side": "Mutates binding maps and scopeError; reports/throws duplicate-binding and shadowed-catch errors.",
+    "pure": false
+  }
+}

@@ -1,0 +1,227 @@
+{
+  "src/core/actions.ts": {
+    "summary": "actions() logic builder: turns action definitions into action creators, sync/async dispatchers, and type maps on the logic. Async dispatch awaits pending listener promises keyed by dispatchId, re-looping on breakpoint errors.",
+    "inputs": "ActionDefinitions object or (logic)=>defs; also createActionCreator(type, payloadCreator), createActionType(key, pathString).",
+    "outputs": "LogicBuilder; populates logic.actionCreators/actions/asyncActions/actionKeys/actionTypes. Helpers return a KeaAction / formatted type string.",
+    "should": "Build action creators, dispatch through context store, honor disableAsyncActions, resolve async via listeners pendingDispatches.",
+    "shouldNot": "Own reducer/selector/listener registration, React, or store creation.",
+    "side": "Dispatches to global context store; mutates logic; increments module async counter.",
+    "pure": false
+  },
+  "src/core/connect.ts": {
+    "summary": "connect() logic builder: pulls other logics' actions and value-selectors into this logic, adds their connections, handles 'a as b' mapping, circular builds, and function selectors. addConnection copies connection maps.",
+    "inputs": "ConnectDefinitions or (props)=>defs; helper deconstructMapping(array), addConnection(logic, otherLogic).",
+    "outputs": "LogicBuilder; sets logic.actionCreators/actions/actionTypes/selectors/values/connections.",
+    "should": "Wire cross-logic actions/values, build wrapper logics, define lazy value getters, error on bad mappings.",
+    "shouldNot": "Define its own reducers, mount logic, or touch React.",
+    "side": "Reads global context/store, may build other logics, mutates logic and its props-derived defs.",
+    "pure": false
+  },
+  "src/core/defaults.ts": {
+    "summary": "defaults() logic builder: sets reducer default values on the logic, either a root '*' function or per-key, preferring persisted context reducerDefaults. getContextDefaults walks the path in the context defaults tree.",
+    "inputs": "defaults value/object/function or (logic)=>...; getContextDefaults(logic).",
+    "outputs": "LogicBuilder; sets logic.defaults. Helper returns a defaults record or void.",
+    "should": "Populate logic.defaults, respect flatDefaults and automatic-path skipping, prefer context defaults.",
+    "shouldNot": "Create reducers/selectors or dispatch.",
+    "side": "Reads global context; mutates logic.defaults.",
+    "pure": false
+  },
+  "src/core/events.ts": {
+    "summary": "events() logic builder plus afterMount/beforeUnmount/propsChanged sugar: registers lifecycle handlers on logic.events, chaining arrays and existing handlers so multiple registrations all run.",
+    "inputs": "EventDefinitions or (logic)=>defs; sugar builders take (logic)=>void or (logic,oldProps)=>void.",
+    "outputs": "LogicBuilder; mutates logic.events with composed handlers.",
+    "should": "Merge/compose lifecycle callbacks, flatten arrays of handlers.",
+    "shouldNot": "Invoke the events, mount, or touch store/React.",
+    "side": "Mutates logic.events; otherwise defers execution.",
+    "pure": false
+  },
+  "src/core/index.ts": {
+    "summary": "Core barrel + corePlugin definition: re-exports all core builders and declares the plugin providing default logic fields, the listeners plugin-context setup, listeners redux middleware, and legacy kea 2.0 object build ordering.",
+    "inputs": "None direct; corePlugin consumed by context activation. Middleware receives store/next/action.",
+    "outputs": "Re-exports; corePlugin: KeaPlugin with defaults() and events hooks.",
+    "should": "Seed blank logic fields, install listeners middleware, run legacy builders in fixed order.",
+    "shouldNot": "Implement builder internals itself (delegates to sibling modules).",
+    "side": "Middleware dispatches listeners on actions; setPluginContext writes plugin context.",
+    "pure": false
+  },
+  "src/core/key.ts": {
+    "summary": "key() logic builder: computes a key from props and appends it to the logic path, guarding against duplicate key builders, undefined keys, and adding a key after actions already exist.",
+    "inputs": "(props)=>KeyType.",
+    "outputs": "LogicBuilder; sets logic.key/keyBuilder and extends logic.path/pathString.",
+    "should": "Derive and attach key, preserve automatic-path marker, throw on misuse.",
+    "shouldNot": "Register actions/reducers or mount.",
+    "side": "Mutates logic path/key fields.",
+    "pure": false
+  },
+  "src/core/listeners.ts": {
+    "summary": "listeners()/sharedListeners() builders and the listeners plugin machinery: wraps listener fns with breakpoint tracking, registers/unregisters them by action/path in plugin context on mount/unmount, and tracks pending promises per dispatchId.",
+    "inputs": "listeners input (object/fn), sharedListeners input; internal add/remove listeners and dispatch tracking helpers; isBreakpoint(error).",
+    "outputs": "LogicBuilders; ListenersPluginContext type; boolean/void helpers. Mutates logic.listeners/cache and plugin context byAction/byPath/pendingPromises/pendingDispatches.",
+    "should": "Wrap listeners with breakpoint semantics, dedupe by contextId, track async promises for asyncActions, cleanup on unmount.",
+    "shouldNot": "Dispatch actions itself or manage reducers/React.",
+    "side": "Registers afterMount/beforeUnmount events; reads/writes global plugin context and logic.cache; setTimeout via breakpoints.",
+    "pure": false
+  },
+  "src/core/path.ts": {
+    "summary": "path() logic builder: sets the logic's explicit path (array or key=>array function), replacing an automatic path but ignoring repeat calls, and forbidding path changes after actions exist.",
+    "inputs": "PathType or (key)=>PathType.",
+    "outputs": "LogicBuilder; sets logic.path/pathString.",
+    "should": "Assign explicit path, append existing key, filter undefined key from kea2 path fns, throw after actions.",
+    "shouldNot": "Compute keys or register actions/reducers.",
+    "side": "Mutates logic.path/pathString.",
+    "pure": false
+  },
+  "src/core/props.ts": {
+    "summary": "props() logic builder: merges input props under any already-set props on the logic, updating lastProps and props via Object.assign only when a shallow comparison shows a change.",
+    "inputs": "props object (L['props']).",
+    "outputs": "LogicBuilder; mutates logic.props/lastProps.",
+    "should": "Seed default props without overwriting existing, skip work when unchanged.",
+    "shouldNot": "Trigger propsChanged events or dispatch.",
+    "side": "Mutates logic.props/lastProps.",
+    "pure": false
+  },
+  "src/core/reducers.ts": {
+    "summary": "reducers() builder plus rootReducer/rootSelector: for each key sets defaults, builds an action-type->reducer mapping (merged across calls via cache), creates the redux-style reducer and a memoized reselect selector+value. pathSelector reads state at the logic path.",
+    "inputs": "ReducerDefinitions or (logic)=>defs; internal getDefaultState, pathSelector.",
+    "outputs": "LogicBuilders; sets logic.reducer/reducers/selector/selectors/values/defaults/reducerOptions and cache.reducers.",
+    "should": "Assemble per-key reducers, resolve defaults (context/root/initial), memoize selectors, error on selector name clash or undefined action.",
+    "shouldNot": "Attach reducers to the store or run listeners.",
+    "side": "Reads global store state/context; mutates logic; uses reselect/combineKeaReducers.",
+    "pure": false
+  },
+  "src/core/selectors.ts": {
+    "summary": "selectors() builder: creates memoized reselect selectors from input selector tuples, exposes props as callable prop-selectors (via Proxy with helpful errors), and defines lazy value getters. addSelectorAndValue registers a selector plus its value getter.",
+    "inputs": "SelectorDefinitions or (logic)=>defs; addSelectorAndValue(logic, key, selector).",
+    "outputs": "LogicBuilder; sets logic.selectors and logic.values getters.",
+    "should": "Build/validate memoized selectors, guard duplicate names and non-function inputs, wire props access.",
+    "shouldNot": "Create reducers or dispatch/mount.",
+    "side": "Reads global store state; mutates logic.selectors/values; defines property getters.",
+    "pure": false
+  },
+  "src/index.ts": {
+    "summary": "Public package entrypoint: re-exports types, utils, core builders, kea(), React hooks/components, context and store APIs, plugin activation, and named reducer action constants; creates a default context on import.",
+    "inputs": "None.",
+    "outputs": "Re-exports and ATTACH_REDUCER/DETACH_REDUCER constants.",
+    "should": "Aggregate the public surface, initialize a default kea context.",
+    "shouldNot": "Contain business logic of its own.",
+    "side": "Calls resetContext at import time (creates global context).",
+    "pure": false
+  },
+  "src/kea/build.ts": {
+    "summary": "Logic build engine: getBuiltLogic caches/creates a BuiltLogic per wrapper+key, runs plugin defaults and all inputs/builders, manages the build heap for circular detection, updates props and fires propsChanged. applyInputToLogic dispatches builder-fn vs legacy-object inputs.",
+    "inputs": "wrapper + props; internal applyInputToLogic; cache lookups by key/props; getWrapperContext.",
+    "outputs": "BuiltLogic; caches in wrapperContext.builtLogics; wrapper context bookkeeping.",
+    "should": "Build logic once, connect dependencies, run plugin lifecycle (beforeBuild/afterBuild etc), detect circular builds.",
+    "shouldNot": "Mount logic, attach reducers, or render React.",
+    "side": "Reads/mutates global context (inputCounter, buildHeap, wrapperContexts); runs plugins; batchChanges for propsChanged.",
+    "pure": false
+  },
+  "src/kea/context.ts": {
+    "summary": "Kea context lifecycle: holds the single module-level context; open/close/reset build the context object (plugins, mount maps, reducer tree, options, lazy store getter), activate corePlugin, and expose plugin-context get/set and store-state access.",
+    "inputs": "ContextOptions; plugin context name for get/set.",
+    "outputs": "Context object; getStoreState; plugin contexts.",
+    "should": "Create/replace the global context, defer store creation, seed default options, activate core plus user plugins.",
+    "shouldNot": "Define builders or React logic.",
+    "side": "Mutates module-level context singleton; creates store; runs plugins.",
+    "pure": false
+  },
+  "src/kea/kea.ts": {
+    "summary": "kea() factory: creates the callable LogicWrapper with build/wrap/mount/unmount/find/findMounted/extend methods and proxied fields, dispatching call to build (props/undefined) or wrap (component). Also proxyFields/proxyFieldToLogic expose built-logic fields on the wrapper.",
+    "inputs": "LogicInput or array of inputs/builders; proxy helpers take wrapper+key.",
+    "outputs": "LogicWrapper; helper unmountedActionError message string.",
+    "should": "Assemble wrapper API, lazily proxy fields to a mounted/built logic, error clearly when unmounted.",
+    "shouldNot": "Implement build/mount internals (delegates to build.ts/mount.ts) or React wrapping (delegates to wrap.ts).",
+    "side": "Reads global context; defines property getters that may build logic.",
+    "pure": false
+  },
+  "src/kea/mount.ts": {
+    "summary": "mountLogic/unmountLogic: reference-count mount all of a logic's connections (deps first, self last; reverse on unmount), running beforeMount/afterMount (and unmount) plugin+event hooks and attaching/detaching reducers when count hits threshold, clearing build cache on full unmount.",
+    "inputs": "BuiltLogic (+ optional count).",
+    "outputs": "void; mutates context mount counter/mounted maps.",
+    "should": "Order (un)mounting by connections, run lifecycle hooks, attach/detach reducers, dedupe via counts.",
+    "shouldNot": "Build logic or manage React rendering directly.",
+    "side": "Mutates global mount state; attaches/detaches redux reducers; runs plugins/events; deletes cached built logic.",
+    "pure": false
+  },
+  "src/kea/plugins.ts": {
+    "summary": "Plugin system: activatePlugin registers a plugin (validating unique name, recording logic fields, warning on reserved/duplicate fields, wiring event arrays and running afterPlugin). runPlugins invokes all handlers for a given lifecycle event key.",
+    "inputs": "KeaPlugin or factory; runPlugins(eventKey, ...args).",
+    "outputs": "void; mutates context.plugins (activated/events/logicFields).",
+    "should": "Register plugins and dispatch lifecycle events in order, guard reserved field names.",
+    "shouldNot": "Know about specific builders or React.",
+    "side": "Mutates global context.plugins; console warnings; optional debug logging.",
+    "pure": false
+  },
+  "src/kea/reducer.ts": {
+    "summary": "Redux reducer tree management: builds/regenerates the nested root reducer tree, attaches/detaches a logic's reducer at its path (with attach/detach strategies), combineKeaReducers (custom combine that drops stale keys), keaReducer factory, and the top-level redux store reducer.",
+    "inputs": "BuiltLogic for attach/detach; pathStart strings; reducer maps.",
+    "outputs": "ReducerFunctions; ATTACH/DETACH constants; mutates context.reducers tree/roots/combined.",
+    "should": "Maintain the reducer tree, regenerate combined reducer, dispatch/replace on attach/detach per strategy, avoid redux stale-key warnings.",
+    "shouldNot": "Build logic or handle listeners/React.",
+    "side": "Mutates global context.reducers; dispatches to / replaces store reducer; runs plugins.",
+    "pure": false
+  },
+  "src/kea/store.ts": {
+    "summary": "createStore: builds the redux store from cloned options, installs listeners middleware/enhancers, a pause-listeners enhancer, redux-devtools compose, and path whitelisting; guards against missing context or an already-created store, runs before/afterReduxStore plugins.",
+    "inputs": "CreateStoreOptions partial.",
+    "outputs": "redux Store (or void on error); pauseListenersEnhancer.",
+    "should": "Assemble and create the single redux store, apply middleware/enhancers, set up whitelisted reducer roots, pause subscriptions when paused.",
+    "shouldNot": "Define reducers/logic; be created twice per context.",
+    "side": "Reads/mutates global context (store, reducers.redux/whitelist); runs plugins; reads window devtools.",
+    "pure": false
+  },
+  "src/react/hooks.ts": {
+    "summary": "React hooks: useSelector/useValues/useAllValues/useActions/useAsyncActions and useMountedLogic (mounts a logic for a component's lifetime, remounting on path change and handling Fast Refresh). batchChanges pauses redux subscriptions during a callback and flushes later.",
+    "inputs": "BuiltLogic or LogicWrapper; selectors; callbacks.",
+    "outputs": "values/actions objects, subscribed state; pauseCounter/isPaused; batchChanges.",
+    "should": "Bridge kea logic to React via useSyncExternalStore, mount/unmount logic with refs/effects, batch/pause store notifications.",
+    "shouldNot": "Build reducers/store or define logic builders.",
+    "side": "Mounts/unmounts logic; reads global store; module-level pauseCounter and flush timeout dispatch.",
+    "pure": false
+  },
+  "src/react/wrap.ts": {
+    "summary": "wrapComponent: HOC that builds the logic for props, injects all values, actions and dispatch into the wrapped component, runs wrap/render plugin hooks, and injects a this.actions getter for class components.",
+    "inputs": "AnyComponent + LogicWrapper.",
+    "outputs": "KeaComponent (function component) with _wrapper/_wrappedComponent.",
+    "should": "Merge logic values/actions into props, support class-component this.actions, run before/afterWrap and beforeRender hooks.",
+    "shouldNot": "Manage mounting counters or reducers directly (uses hooks).",
+    "side": "Reads global context (dispatch); mutates class prototype; runs plugins.",
+    "pure": false
+  },
+  "src/react/bind.tsx": {
+    "summary": "BindLogic React component and context helper: gets/creates a React context per logic wrapper, builds the logic with given props, mounts it, and provides the built logic to descendants so hooks resolve to this instance.",
+    "inputs": "{ logic, props, children }.",
+    "outputs": "JSX provider element; getOrCreateContextForLogicWrapper returns a React context.",
+    "should": "Scope a keyed/prop-specific logic instance to a subtree via React context, keep it mounted.",
+    "shouldNot": "Implement mounting internals (delegates to useMountedLogic).",
+    "side": "Reads/mutates global context.react.contexts; mounts logic.",
+    "pure": false
+  },
+  "src/react/provider.tsx": {
+    "summary": "Provider: legacy no-op React component that renders children and warns once (except in test env) that it should be removed in favor of react-redux Provider or Kea's useSelector.",
+    "inputs": "{ children }.",
+    "outputs": "JSX fragment wrapping children.",
+    "should": "Render children unchanged; emit a one-time deprecation warning.",
+    "shouldNot": "Provide any store/context or perform real work.",
+    "side": "Module-level 'warned' flag; console.warn once.",
+    "pure": false
+  },
+  "src/utils.ts": {
+    "summary": "Small shared utilities: isLogicWrapper and isBuiltLogic type guards (checking marker fields) and shallowCompare for one-level object equality by keys and strict-equal values.",
+    "inputs": "arbitrary values / two objects.",
+    "outputs": "booleans (with type predicates).",
+    "should": "Detect wrapper vs built logic, compare objects shallowly.",
+    "shouldNot": "Depend on context, store, or React.",
+    "side": "None.",
+    "pure": true
+  },
+  "src/types.ts": {
+    "summary": "Central TypeScript type declarations for the whole library: Logic/BuiltLogic/LogicWrapper, builder input definition types (actions/reducers/selectors/listeners/events/connect), plugin/context/store option types, and typegen helper types like MakeLogicType/KeaLogicType.",
+    "inputs": "None (types only).",
+    "outputs": "Exported types/interfaces used across modules.",
+    "should": "Define the shared type contracts and public type helpers.",
+    "shouldNot": "Contain runtime code or values.",
+    "side": "None.",
+    "pure": true
+  }
+}

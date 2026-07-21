@@ -1,0 +1,722 @@
+{
+  "src/index.ts": {
+    "summary": "Root public barrel; re-exports the entire library surface (schema builders + `s`/`schema`, all schema classes/types, table/entity actions, errors, transformers).",
+    "inputs": "Named re-exports from schema/, table/, entity/, errors/, transformers/ subtrees.",
+    "outputs": "The package's public API (values and types) consumed by library users.",
+    "should": "Aggregate and rename public exports; keep the surface stable.",
+    "shouldNot": "Contain logic, define types, or import internal-only helpers.",
+    "side": "none",
+    "pure": true
+  },
+  "src/errors/index.ts": {
+    "summary": "Barrel exposing the single runtime error class used across the library.",
+    "inputs": "DynamoDBToolboxError from ./dynamoDBToolboxError.js.",
+    "outputs": "DynamoDBToolboxError.",
+    "should": "Re-export the error class only.",
+    "shouldNot": "Define error blueprints or throw.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/index.ts": {
+    "summary": "Schema subsystem barrel; re-exports all type builders and defines the `schema`/`s` object aggregating typers (any, nul, boolean, number, string, binary, set, list, map, record, anyOf, item).",
+    "inputs": "Each type's typer function and its index barrel; SchemaAction.",
+    "outputs": "All schema classes/types, `schema` object, alias `s`, SchemaAction.",
+    "should": "Provide the single entry point for building schemas; assemble the typer registry.",
+    "shouldNot": "Implement parsing/validation logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/schema.ts": {
+    "summary": "Defines SchemaAction, the abstract base class all schema actions (Parser, Formatter, Finder, etc.) extend, holding a reference to their target schema.",
+    "inputs": "A Schema instance via constructor.",
+    "outputs": "SchemaAction base class with static actionName and readonly schema.",
+    "should": "Bind an action to a schema; expose actionName slot.",
+    "shouldNot": "Perform any parsing/formatting itself.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/errors.ts": {
+    "summary": "Type-only union aggregating every schema-related error blueprint (primitive, set, list, map, record, anyOf, shared, item, actions) into SchemaErrorBlueprints.",
+    "inputs": "ErrorBlueprint unions from each schema type's errors module.",
+    "outputs": "SchemaErrorBlueprints type union.",
+    "should": "Centralize the schema error type surface for DynamoDBToolboxError typing.",
+    "shouldNot": "Contain runtime code or throw.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/index.ts": {
+    "summary": "Barrel for shared schema type utilities: value derivations (Input/Valid/Transformed/Formatted/Decoded), options, extension parser symbols, paths, schema unions, props.",
+    "inputs": "Type re-exports from sibling modules.",
+    "outputs": "The shared schema type vocabulary.",
+    "should": "Aggregate cross-cutting schema types.",
+    "shouldNot": "Hold runtime logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/schema.ts": {
+    "summary": "Defines the Schema and Schema_ discriminated unions over all concrete schema classes (frozen and warm/builder variants).",
+    "inputs": "Each type's Schema/Schema_ class types.",
+    "outputs": "Schema, Schema_ union types.",
+    "should": "Provide the canonical 'any schema' type used everywhere.",
+    "shouldNot": "Reference runtime values.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/attribute.ts": {
+    "summary": "Type machinery for extended vs unextended runtime values per schema type; ExtendedValue resolves an Extension for a given type, and Schema{Un}extendedValue recursively describe possible JS values.",
+    "inputs": "Resolved primitive schema types; Extension type.",
+    "outputs": "Extension, ExtendedValue, and per-type/aggregate {Un}extendedValue types.",
+    "should": "Model the shape of parsed values including user extensions.",
+    "shouldNot": "Introduce runtime behavior.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/schemaProps.ts": {
+    "summary": "Defines SchemaProps (the shared prop bag: required/hidden/key/savedAs/defaults/links/validators) and the required-tag literals Never/AtLeastOnce/Always plus SchemaRequiredProp.",
+    "inputs": "Validator type.",
+    "outputs": "SchemaProps interface, required-prop literal types.",
+    "should": "Be the single source of truth for common attribute props.",
+    "shouldNot": "Add type-specific props (enum/big/partial live in per-type props).",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/options.ts": {
+    "summary": "Write/read option types: WriteMode ('key'|'put'|'update'), WriteValueOptions, ReadValueOptions, and SchemaExtendedWriteValue helper.",
+    "inputs": "Extension, Paths, Schema, ExtendedValue types.",
+    "outputs": "WriteMode, WriteValueOptions, ReadValueOptions, SchemaExtendedWriteValue.",
+    "should": "Parameterize value-derivation types by mode/extension/attribute selection.",
+    "shouldNot": "Carry runtime option parsing.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/validator.ts": {
+    "summary": "Defines the Validator functional type: (input, schema) => boolean | string.",
+    "inputs": "Generic INPUT and SCHEMA type params.",
+    "outputs": "Validator type.",
+    "should": "Standardize custom validator signatures.",
+    "shouldNot": "Anything else.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/inputValue.ts": {
+    "summary": "Recursive type deriving the raw user INPUT accepted by a schema (before defaults/links fill), keyed on mode/required/key/default props to decide which keys are optional.",
+    "inputs": "Schema unions, WriteValueOptions, type helpers.",
+    "outputs": "InputValue<SCHEMA, OPTIONS> and internal MustBeProvided/OptionalKeys helpers.",
+    "should": "Model the permissive write input surface.",
+    "shouldNot": "Emit runtime code; conflate with post-fill ValidValue.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/validValue.ts": {
+    "summary": "Recursive type for a schema's VALID (post-fill, pre-transform) value; MustBeDefined governs optionality by mode and required prop.",
+    "inputs": "Schema unions, WriteValueOptions, type helpers.",
+    "outputs": "ValidValue<SCHEMA, OPTIONS>.",
+    "should": "Model the validated in-memory value shape.",
+    "shouldNot": "Apply savedAs renaming (that's TransformedValue).",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/transformedValue.ts": {
+    "summary": "Recursive type for the DB-facing transformed value: applies savedAs key renaming and transformer output types.",
+    "inputs": "Schema unions, Transformer/TypeModifier, WriteValueOptions.",
+    "outputs": "TransformedValue<SCHEMA, OPTIONS>.",
+    "should": "Model the value as stored in DynamoDB (renamed keys, transformed primitives).",
+    "shouldNot": "Represent formatted/read output.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/formattedValue.ts": {
+    "summary": "Recursive type for values returned to users after read: hides hidden attributes, supports attribute-path selection and partial reads.",
+    "inputs": "Schema unions, ReadValueOptions, path utils.",
+    "outputs": "FormattedValue<SCHEMA, OPTIONS>.",
+    "should": "Model the public read shape with hidden-field omission and projection.",
+    "shouldNot": "Include hidden attributes.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/decodedValue.ts": {
+    "summary": "Recursive type for decoded values (post-transform-reversal, before hiding hidden fields) — like FormattedValue but retains hidden attributes.",
+    "inputs": "Schema unions, ReadValueOptions, path utils.",
+    "outputs": "DecodedValue<SCHEMA, OPTIONS>.",
+    "should": "Model the intermediate read shape prior to hiding.",
+    "shouldNot": "Omit hidden fields.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/extensionParser.ts": {
+    "summary": "Declares $extension/$contextExtension symbols and the ExtensionParser generator-function type used to plug custom write-value extensions (e.g. update ops) into parsing.",
+    "inputs": "Extension, Schema, ValidValue/TransformedValue types, ArrayPath.",
+    "outputs": "$extension/$contextExtension symbols+types, ExtensionParser, ExtensionParserOptions.",
+    "should": "Define the contract parsers use to intercept extended inputs.",
+    "shouldNot": "Implement a concrete extension parser.",
+    "side": "declares two module-level Symbols",
+    "pure": false
+  },
+  "src/schema/types/paths.ts": {
+    "summary": "Type-level derivation of all valid attribute path strings for a schema (dot and bracket notation), with escaping of special chars.",
+    "inputs": "Schema unions, If/Extends helpers.",
+    "outputs": "Paths, SchemaPaths, ItemSchemaPaths, StringToEscape, AppendKey.",
+    "should": "Enumerate legal projection/condition path strings per schema shape.",
+    "shouldNot": "Parse paths at runtime (see actions/parsePaths).",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/types/pathUtils.ts": {
+    "summary": "Type helpers MatchKeys and ChildPaths that, given attribute keys and selected path strings, compute which keys match and the remaining child path suffixes.",
+    "inputs": "String literal key/path type params.",
+    "outputs": "MatchKeys, ChildPaths types.",
+    "should": "Support projection logic in Formatted/DecodedValue.",
+    "shouldNot": "Hold runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/any/index.ts": {
+    "summary": "Barrel for the 'any' schema type: AnySchema class, any typer, AnySchema_ builder, ResolveAnySchema, AnySchemaProps.",
+    "inputs": "Sibling schema/schema_/resolve/types modules.",
+    "outputs": "any-type public exports.",
+    "should": "Re-export the any-type surface.",
+    "shouldNot": "Contain logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/any/schema.ts": {
+    "summary": "AnySchema class (type:'any'); stores props, exposes checked getter and check() that validates shared props then freezes props.",
+    "inputs": "AnySchemaProps.",
+    "outputs": "AnySchema instance.",
+    "should": "Represent an unconstrained attribute; validate/freeze on check.",
+    "shouldNot": "Validate runtime values (that's Parser).",
+    "side": "check() throws DynamoDBToolboxError on bad props; freezes props (mutation).",
+    "pure": false
+  },
+  "src/schema/any/schema_.ts": {
+    "summary": "Warm builder AnySchema_ (extends AnySchema) plus the `any` typer; fluent immutable methods (required, optional, hidden, key, savedAs, castAs, defaults, links, validators, transform, clone, build) each returning a new cloned instance.",
+    "inputs": "Optional initial props.",
+    "outputs": "`any` typer, AnySchema_ builder class.",
+    "should": "Provide a chainable, immutable schema-definition DSL for any-type.",
+    "shouldNot": "Mutate existing instances (uses overwrite to clone).",
+    "side": "constructs new instances; no external effects",
+    "pure": false
+  },
+  "src/schema/any/resolve.ts": {
+    "summary": "Type ResolveAnySchema<S> = S['props']['castAs'] — resolves an any-schema's TS value type to its castAs override.",
+    "inputs": "AnySchema type.",
+    "outputs": "ResolveAnySchema type.",
+    "should": "Map any-schema to its user-cast value type.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/any/types.ts": {
+    "summary": "AnySchemaProps interface extending SchemaProps with castAs (unknown) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "AnySchemaProps.",
+    "should": "Add any-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/null/index.ts": {
+    "summary": "Barrel for the 'null' schema type: NullSchema, nul typer, NullSchema_, ResolvedNullSchema, NullSchemaProps.",
+    "inputs": "Sibling modules.",
+    "outputs": "null-type public exports.",
+    "should": "Re-export null-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/null/schema.ts": {
+    "summary": "NullSchema class (type:'null'); check() runs checkPrimitiveSchema then freezes props.",
+    "inputs": "NullSchemaProps.",
+    "outputs": "NullSchema instance.",
+    "should": "Represent a null-only attribute.",
+    "shouldNot": "Validate runtime values.",
+    "side": "check() throws on bad props; freezes props.",
+    "pure": false
+  },
+  "src/schema/null/schema_.ts": {
+    "summary": "Warm builder NullSchema_ and `nul` typer; fluent immutable prop methods returning cloned instances (mirrors the primitive builder pattern).",
+    "inputs": "Optional props.",
+    "outputs": "`nul` typer, NullSchema_ class.",
+    "should": "Chainable immutable null-schema DSL.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/null/resolve.ts": {
+    "summary": "Exports ResolvedNullSchema (the resolved TS value type null for null schemas).",
+    "inputs": "NullSchema type.",
+    "outputs": "ResolvedNullSchema.",
+    "should": "Map null schema to `null`.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/null/types.ts": {
+    "summary": "NullSchemaProps extending SchemaProps with enum (null[]) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "NullSchemaProps.",
+    "should": "Add null-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/boolean/index.ts": {
+    "summary": "Barrel for the 'boolean' schema type: BooleanSchema, boolean typer, BooleanSchema_, resolve types, BooleanSchemaProps.",
+    "inputs": "Sibling modules.",
+    "outputs": "boolean-type public exports.",
+    "should": "Re-export boolean-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/boolean/schema.ts": {
+    "summary": "BooleanSchema class (type:'boolean'); check() runs checkPrimitiveSchema then freezes props.",
+    "inputs": "BooleanSchemaProps.",
+    "outputs": "BooleanSchema instance.",
+    "should": "Represent a boolean attribute.",
+    "shouldNot": "Validate runtime values.",
+    "side": "check() throws on bad props; freezes props.",
+    "pure": false
+  },
+  "src/schema/boolean/resolve.ts": {
+    "summary": "ResolveBooleanSchema<S> narrows to the enum union when props.enum is boolean[], else boolean; plus ResolvedBooleanSchema.",
+    "inputs": "BooleanSchema type.",
+    "outputs": "ResolveBooleanSchema, ResolvedBooleanSchema.",
+    "should": "Resolve boolean schema to its TS value type.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/boolean/types.ts": {
+    "summary": "BooleanSchemaProps extending SchemaProps with enum (boolean[]) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "BooleanSchemaProps.",
+    "should": "Add boolean-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/number/index.ts": {
+    "summary": "Barrel for the 'number' schema type: NumberSchema, number typer, NumberSchema_, resolve types, NumberSchemaProps.",
+    "inputs": "Sibling modules.",
+    "outputs": "number-type public exports.",
+    "should": "Re-export number-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/number/schema.ts": {
+    "summary": "NumberSchema class (type:'number'); check() runs checkPrimitiveSchema, additionally validates the `big` prop is boolean, then freezes props.",
+    "inputs": "NumberSchemaProps.",
+    "outputs": "NumberSchema instance.",
+    "should": "Represent a number/bigint attribute; enforce big is boolean.",
+    "shouldNot": "Validate runtime values.",
+    "side": "check() throws DynamoDBToolboxError on bad props; freezes props.",
+    "pure": false
+  },
+  "src/schema/number/schema_.ts": {
+    "summary": "Warm builder NumberSchema_ and `number` typer; fluent immutable methods (required/hidden/key/savedAs/enum/const/big/defaults/links/validators/transform/clone/build) returning cloned instances.",
+    "inputs": "Optional props (enum excluded from input, set via method).",
+    "outputs": "`number` typer, NumberSchema_ class.",
+    "should": "Chainable immutable number-schema DSL.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/number/resolve.ts": {
+    "summary": "ResolveNumberSchema<S> narrows to enum union when props.enum is (number|bigint)[], else number | (bigint when big:true).",
+    "inputs": "NumberSchema type.",
+    "outputs": "ResolveNumberSchema, ResolvedNumberSchema.",
+    "should": "Resolve number schema to its TS value type.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/number/types.ts": {
+    "summary": "NumberSchemaProps extending SchemaProps with big (boolean), enum ((number|bigint)[]) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "NumberSchemaProps.",
+    "should": "Add number-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/string/index.ts": {
+    "summary": "Barrel for the 'string' schema type: StringSchema, string typer, StringSchema_, resolve types, StringSchemaProps.",
+    "inputs": "Sibling modules.",
+    "outputs": "string-type public exports.",
+    "should": "Re-export string-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/string/schema.ts": {
+    "summary": "StringSchema class (type:'string'); check() runs checkPrimitiveSchema then freezes props.",
+    "inputs": "StringSchemaProps.",
+    "outputs": "StringSchema instance.",
+    "should": "Represent a string attribute.",
+    "shouldNot": "Validate runtime values.",
+    "side": "check() throws on bad props; freezes props.",
+    "pure": false
+  },
+  "src/schema/string/schema_.ts": {
+    "summary": "Warm builder StringSchema_ and `string` typer — the canonical primitive builder; each fluent method (required/optional/hidden/key/savedAs/enum/const/transform/keyDefault/putDefault/updateDefault/default/keyLink/putLink/updateLink/link/validators/clone/build) returns a new cloned instance via overwrite.",
+    "inputs": "Optional props (enum excluded from input).",
+    "outputs": "`string` typer, StringSchema_ class.",
+    "should": "Chainable immutable string-schema DSL; branch key vs put for default/link/validate.",
+    "shouldNot": "Mutate existing instances.",
+    "side": "constructs new instances; imports entity update types (noted circular debt)",
+    "pure": false
+  },
+  "src/schema/string/resolve.ts": {
+    "summary": "ResolveStringSchema<S> narrows to enum union when props.enum is string[], else string; plus ResolvedStringSchema.",
+    "inputs": "StringSchema type.",
+    "outputs": "ResolveStringSchema, ResolvedStringSchema.",
+    "should": "Resolve string schema to its TS value type.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/string/types.ts": {
+    "summary": "StringSchemaProps extending SchemaProps with enum (string[]) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "StringSchemaProps.",
+    "should": "Add string-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/binary/index.ts": {
+    "summary": "Barrel for the 'binary' schema type: BinarySchema, binary typer, BinarySchema_, resolve types, BinarySchemaProps.",
+    "inputs": "Sibling modules.",
+    "outputs": "binary-type public exports.",
+    "should": "Re-export binary-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/binary/schema.ts": {
+    "summary": "BinarySchema class (type:'binary'); check() runs checkPrimitiveSchema then freezes props.",
+    "inputs": "BinarySchemaProps.",
+    "outputs": "BinarySchema instance.",
+    "should": "Represent a Uint8Array attribute.",
+    "shouldNot": "Validate runtime values.",
+    "side": "check() throws on bad props; freezes props.",
+    "pure": false
+  },
+  "src/schema/binary/resolve.ts": {
+    "summary": "ResolveBinarySchema<S> narrows to enum union when props.enum is Uint8Array[], else Uint8Array; plus ResolvedBinarySchema.",
+    "inputs": "BinarySchema type.",
+    "outputs": "ResolveBinarySchema, ResolvedBinarySchema.",
+    "should": "Resolve binary schema to its TS value type.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/binary/types.ts": {
+    "summary": "BinarySchemaProps extending SchemaProps with enum (Uint8Array[]) and transform.",
+    "inputs": "SchemaProps.",
+    "outputs": "BinarySchemaProps.",
+    "should": "Add binary-specific props.",
+    "shouldNot": "Redefine shared props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/primitive/index.ts": {
+    "summary": "Type-only barrel exporting the aggregate primitive unions PrimitiveSchema, PrimitiveSchema_, ResolvePrimitiveSchema, ResolvedPrimitiveSchema.",
+    "inputs": "./types.js.",
+    "outputs": "primitive union types.",
+    "should": "Expose the primitive supertype.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/primitive/types.ts": {
+    "summary": "Defines PrimitiveSchema/PrimitiveSchema_ unions (null|boolean|number|string|binary) and Resolve(d)PrimitiveSchema mapping each to its value type.",
+    "inputs": "Per-primitive schema and resolve types.",
+    "outputs": "Primitive union and resolution types.",
+    "should": "Group the five primitives for shared handling.",
+    "shouldNot": "Include composite types.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/primitive/check.ts": {
+    "summary": "checkPrimitiveSchema(schema, path): shared runtime validation for all primitives — validates shared props, then that every enum value has the correct primitive type, and that static defaults are the right type and within enum range.",
+    "inputs": "A PrimitiveSchema and optional path string.",
+    "outputs": "void.",
+    "should": "Enforce enum/default type and range invariants.",
+    "shouldNot": "Freeze props (callers freeze); validate composite schemas.",
+    "side": "throws DynamoDBToolboxError on invalid enum/default",
+    "pure": false
+  },
+  "src/schema/set/index.ts": {
+    "summary": "Barrel for the 'set' schema type: SetSchema, set typer, SetSchema_, SetElementSchema.",
+    "inputs": "Sibling modules.",
+    "outputs": "set-type public exports.",
+    "should": "Re-export set-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/set/schema.ts": {
+    "summary": "SetSchema class (type:'set') wrapping one element schema; check() validates shared props and that elements are required, not hidden, not renamed (savedAs), and have no default/link, then recurses into the element and freezes.",
+    "inputs": "A SetElementSchema and SchemaProps.",
+    "outputs": "SetSchema instance.",
+    "should": "Enforce set-element constraints; cascade check to element.",
+    "shouldNot": "Allow optional/hidden/renamed/defaulted elements.",
+    "side": "check() throws DynamoDBToolboxError; freezes props and elements.",
+    "pure": false
+  },
+  "src/schema/set/schema_.ts": {
+    "summary": "Warm builder SetSchema_ and `set` typer; takes a lightened element schema and exposes the fluent immutable prop DSL.",
+    "inputs": "An element schema (number/string/binary) and optional props.",
+    "outputs": "`set` typer, SetSchema_ class.",
+    "should": "Build set schemas immutably; light() the element.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/set/types.ts": {
+    "summary": "SetElementSchema type: number/string/binary schema whose props are constrained (required atLeastOnce, not hidden, no savedAs/defaults/links).",
+    "inputs": "Primitive schema types, AtLeastOnce.",
+    "outputs": "SetElementSchema.",
+    "should": "Constrain legal set element shapes at the type level.",
+    "shouldNot": "Permit composite or defaulted elements.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/list/index.ts": {
+    "summary": "Barrel for the 'list' schema type: ListSchema, list typer, ListSchema_, ListElementSchema.",
+    "inputs": "Sibling modules.",
+    "outputs": "list-type public exports.",
+    "should": "Re-export list-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/list/schema.ts": {
+    "summary": "ListSchema class (type:'list') wrapping one element schema; check() validates shared props and that the element is required, not hidden, not renamed, and undefaulted, then recurses (path '[n]') and freezes.",
+    "inputs": "An element Schema and SchemaProps.",
+    "outputs": "ListSchema instance.",
+    "should": "Enforce list-element constraints; cascade check.",
+    "shouldNot": "Allow optional/hidden/renamed/defaulted elements.",
+    "side": "check() throws DynamoDBToolboxError; freezes props and element.",
+    "pure": false
+  },
+  "src/schema/list/schema_.ts": {
+    "summary": "Warm builder ListSchema_ and `list` typer; takes a lightened element schema and exposes the fluent immutable prop DSL.",
+    "inputs": "An element schema and optional props.",
+    "outputs": "`list` typer, ListSchema_ class.",
+    "should": "Build list schemas immutably.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/list/types.ts": {
+    "summary": "ListElementSchema type: any Schema whose props are constrained to a required, non-hidden, non-renamed, undefaulted element.",
+    "inputs": "Schema, SchemaProps, AtLeastOnce.",
+    "outputs": "ListElementSchema.",
+    "should": "Constrain legal list element shapes.",
+    "shouldNot": "Permit defaulted/renamed elements.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/map/index.ts": {
+    "summary": "Barrel for the 'map' schema type: MapSchema, map typer, MapSchema_, MapAttributes.",
+    "inputs": "Sibling modules.",
+    "outputs": "map-type public exports.",
+    "should": "Re-export map-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/map/schema.ts": {
+    "summary": "MapSchema class (type:'map') over named attributes; constructor precomputes key/saved/required attribute-name sets. check() validates shared props, detects duplicate savedAs, recomputes sets, cascades check to each attribute, then freezes.",
+    "inputs": "An ATTRIBUTES record and SchemaProps.",
+    "outputs": "MapSchema instance with keyAttributeNames/savedAttributeNames/requiredAttributeNames.",
+    "should": "Model a fixed-shape nested object; enforce unique savedAs.",
+    "shouldNot": "Allow two attributes sharing a savedAs.",
+    "side": "check() throws DynamoDBToolboxError; freezes props/attributes/name-sets.",
+    "pure": false
+  },
+  "src/schema/map/schema_.ts": {
+    "summary": "Warm builder MapSchema_ and `map` typer; takes an attributes object (lightObj-normalized) and exposes the fluent immutable prop DSL.",
+    "inputs": "Attributes record and optional props.",
+    "outputs": "`map` typer, MapSchema_ class.",
+    "should": "Build map schemas immutably.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/map/types.ts": {
+    "summary": "MapAttributes interface: string-keyed record of Schema.",
+    "inputs": "Schema.",
+    "outputs": "MapAttributes.",
+    "should": "Type the attributes bag of a map.",
+    "shouldNot": "Constrain individual attribute props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/record/index.ts": {
+    "summary": "Barrel for the 'record' schema type: RecordSchema, record typer, RecordSchema_, RecordSchemaProps, RecordKeySchema, RecordElementSchema.",
+    "inputs": "Sibling modules.",
+    "outputs": "record-type public exports.",
+    "should": "Re-export record-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/record/schema.ts": {
+    "summary": "RecordSchema class (type:'record') with keys+elements schemas; check() validates shared props, the `partial` boolean prop, that keys are a string schema and that both keys and elements are required, non-hidden, non-key, non-renamed, undefaulted, then cascades and freezes.",
+    "inputs": "A key StringSchema, an element Schema, RecordSchemaProps.",
+    "outputs": "RecordSchema instance.",
+    "should": "Model an open-ended string-keyed map; enforce key/element constraints.",
+    "shouldNot": "Allow non-string keys or defaulted/renamed keys/elements.",
+    "side": "check() throws DynamoDBToolboxError; freezes props/keys/elements.",
+    "pure": false
+  },
+  "src/schema/record/schema_.ts": {
+    "summary": "Warm builder RecordSchema_ and `record` typer; takes lightened key and element schemas plus the fluent immutable prop DSL (incl. partial).",
+    "inputs": "Key schema, element schema, optional props.",
+    "outputs": "`record` typer, RecordSchema_ class.",
+    "should": "Build record schemas immutably.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/record/types.ts": {
+    "summary": "RecordSchemaProps (adds partial) and the constrained RecordKeySchema/RecordElementSchema types (required, non-hidden, non-key, non-renamed, undefaulted).",
+    "inputs": "StringSchema(Props), Schema, SchemaProps, AtLeastOnce.",
+    "outputs": "RecordSchemaProps, RecordKeySchema, RecordElementSchema.",
+    "should": "Type record props and constrain key/element shapes.",
+    "shouldNot": "Permit non-string keys.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/anyOf/index.ts": {
+    "summary": "Barrel for the 'anyOf' (union) schema type: AnyOfSchema, anyOf typer, AnyOfSchema_, AnyOfSchemaProps, AnyOfElementSchema.",
+    "inputs": "Sibling modules.",
+    "outputs": "anyOf-type public exports.",
+    "should": "Re-export anyOf-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/anyOf/schema.ts": {
+    "summary": "AnyOfSchema class (type:'anyOf') over an elements array; lazily computes discriminators (shared string-enum attrs) and discriminations (enum-value->element map). check() validates the array is non-empty and each element is required/non-hidden/non-renamed/undefaulted and the discriminator prop is valid, then cascades and freezes. match(value) resolves the element schema for a discriminator value.",
+    "inputs": "A Schema[] and AnyOfSchemaProps (optional discriminator).",
+    "outputs": "AnyOfSchema instance; match() and $discriminators getter.",
+    "should": "Model a tagged/untagged union; support discriminated matching.",
+    "shouldNot": "Allow zero elements or defaulted/renamed elements.",
+    "side": "check() throws DynamoDBToolboxError; freezes; memoizes computed maps into symbol-keyed fields.",
+    "pure": false
+  },
+  "src/schema/anyOf/schema_.ts": {
+    "summary": "Warm builder AnyOfSchema_ and `anyOf` variadic typer; takes lightened element schemas and exposes the fluent immutable prop DSL (incl. discriminate).",
+    "inputs": "Variadic element schemas.",
+    "outputs": "`anyOf` typer, AnyOfSchema_ class.",
+    "should": "Build union schemas immutably.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/anyOf/types.ts": {
+    "summary": "Type-level Discriminator derivation across union elements (intersecting per-element string-enum discriminator keys), AnyOfSchemaProps (discriminator?), and constrained AnyOfElementSchema.",
+    "inputs": "MapSchema, StringSchema, Schema, required literals.",
+    "outputs": "Discriminator, AnyOfSchemaProps, AnyOfElementSchema.",
+    "should": "Type valid discriminator keys and element shapes.",
+    "shouldNot": "Runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/anyOf/constants.ts": {
+    "summary": "Declares the internal symbols $discriminators_, $discriminators, $discriminations_, $computed used by AnyOfSchema to memoize discriminator computation.",
+    "inputs": "none.",
+    "outputs": "four Symbols and their types.",
+    "should": "Provide stable private keys for anyOf memoization.",
+    "shouldNot": "Hold logic.",
+    "side": "creates module-level Symbols",
+    "pure": false
+  },
+  "src/schema/item/index.ts": {
+    "summary": "Barrel for the top-level 'item' schema type: ItemSchema, item typer, ItemSchema_, ItemAttributes.",
+    "inputs": "Sibling modules.",
+    "outputs": "item-type public exports.",
+    "should": "Re-export item-type surface.",
+    "shouldNot": "Logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/item/schema.ts": {
+    "summary": "ItemSchema class (type:'item') — the root schema of an entity, like MapSchema but props are fixed to {}; constructor precomputes key/saved/required name sets, check() validates props, detects duplicate savedAs, cascades check, then freezes.",
+    "inputs": "An ATTRIBUTES record.",
+    "outputs": "ItemSchema instance with keyAttributeNames/savedAttributeNames/requiredAttributeNames.",
+    "should": "Model the entity's top-level item; enforce unique savedAs.",
+    "shouldNot": "Carry configurable props (props are always {}).",
+    "side": "check() throws DynamoDBToolboxError; freezes props/attributes/name-sets.",
+    "pure": false
+  },
+  "src/schema/item/schema_.ts": {
+    "summary": "Warm builder ItemSchema_ and `item` typer; takes an attributes object (lightObj-normalized). Root builder, so exposes fewer prop methods than nested types.",
+    "inputs": "Attributes record.",
+    "outputs": "`item` typer, ItemSchema_ class.",
+    "should": "Build the root item schema immutably.",
+    "shouldNot": "Mutate in place.",
+    "side": "constructs new instances",
+    "pure": false
+  },
+  "src/schema/item/types.ts": {
+    "summary": "ItemAttributes interface: string-keyed record of Schema (the entity's attributes bag).",
+    "inputs": "Schema.",
+    "outputs": "ItemAttributes.",
+    "should": "Type the item's attributes.",
+    "shouldNot": "Constrain individual attribute props.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/utils/checkSchemaProps.ts": {
+    "summary": "checkSchemaProps(props, path): validates the shared props common to all schemas — required is one of the allowed tags, hidden/key are booleans, savedAs is a string.",
+    "inputs": "A SchemaProps bag and optional path.",
+    "outputs": "void; also exports schemaRequiredPropSet.",
+    "should": "Enforce shared prop-type invariants for every schema's check().",
+    "shouldNot": "Validate type-specific props or freeze.",
+    "side": "throws DynamoDBToolboxError on invalid prop",
+    "pure": false
+  },
+  "src/schema/utils/hasDefinedDefault.ts": {
+    "summary": "hasDefinedDefault(schema): true if any of keyDefault/putDefault/updateDefault/keyLink/putLink/updateLink is defined.",
+    "inputs": "A Schema.",
+    "outputs": "boolean.",
+    "should": "Detect whether a schema carries any default or link (used to reject defaulted elements).",
+    "shouldNot": "Mutate.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/utils/isDynamicDefault.ts": {
+    "summary": "isDynamicDefault(value): type-guard true when the default value is a function (a getter).",
+    "inputs": "unknown default value.",
+    "outputs": "boolean type predicate.",
+    "should": "Distinguish computed defaults from static ones.",
+    "shouldNot": "Invoke the default.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/utils/isStaticDefault.ts": {
+    "summary": "isStaticDefault(value): type-guard true when the default is not a function (a literal value).",
+    "inputs": "unknown default value.",
+    "outputs": "boolean type predicate.",
+    "should": "Identify statically-checkable defaults (complements isDynamicDefault).",
+    "shouldNot": "Invoke the default.",
+    "side": "none",
+    "pure": true
+  },
+  "src/schema/utils/light.ts": {
+    "summary": "Light<S> type + light/lightTuple/lightObj identity casters that strip a warm schema's builder methods to its base class, avoiding heavy type computes when passing schemas into typers.",
+    "inputs": "A schema / tuple / object of schemas.",
+    "outputs": "Same value typed as the lightened base schema(s).",
+    "should": "Reduce type-instantiation cost for large schemas.",
+    "shouldNot": "Change runtime values (pure cast).",
+    "side": "none (identity cast)",
+    "pure": true
+  }
+}

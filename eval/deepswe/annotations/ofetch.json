@@ -1,0 +1,65 @@
+{
+  "src/index.ts": {
+    "summary": "Package entrypoint: re-exports base/types and creates the default ofetch/$fetch instances bound to globalThis.fetch.",
+    "inputs": "globalThis.fetch (may be absent).",
+    "outputs": "Exported `fetch` wrapper, `ofetch` and `$fetch` $Fetch instances; re-exports base.ts and types.ts.",
+    "should": "Wrap global fetch, instantiate default client via createFetch, aggregate public API surface.",
+    "shouldNot": "Contain request logic, error normalization, URL/utils helpers, or type declarations.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/base.ts": {
+    "summary": "Barrel module re-exporting the public symbols of fetch.ts (createFetch) and error.ts (FetchError, createFetchError).",
+    "inputs": "None (barrel).",
+    "outputs": "Re-exports of ./fetch.ts and ./error.ts symbols.",
+    "should": "Aggregate and re-export the core fetch factory and error module surface.",
+    "shouldNot": "Contain request logic, error construction, or type definitions of its own.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/error.ts": {
+    "summary": "FetchError class and createFetchError factory that builds a normalized error with lazy request/options/response/data/status getters from context.",
+    "inputs": "FetchContext (error, request, options, response).",
+    "outputs": "FetchError instance implementing IFetchError with descriptive message and defined getters.",
+    "should": "Format error message, attach cause, expose context-derived properties via getters.",
+    "shouldNot": "Perform fetching, retries, or response parsing.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/utils.ts": {
+    "summary": "Fetch helper utilities: payload-method check, JSON-serializability detection, response-type detection from content-type, option/header merging, and hook invocation.",
+    "inputs": "Values, content-type strings, request/options/defaults, hooks + context.",
+    "outputs": "Booleans, ResponseType, ResolvedFetchOptions with merged Headers; awaits hooks.",
+    "should": "Provide pure-ish predicates and option resolution; run hooks sequentially.",
+    "shouldNot": "Perform network requests, build URLs, or define public API types.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/utils.url.ts": {
+    "summary": "URL manipulation helpers: joinURL, withBase, and withQuery for appending/merging query parameters with normalization.",
+    "inputs": "Base/path strings, input URL, QueryObject.",
+    "outputs": "Normalized URL strings.",
+    "should": "Join paths avoiding double slashes, prefix base, serialize query params, drop undefined values.",
+    "shouldNot": "Perform network I/O, touch fetch options, or handle responses.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types.ts": {
+    "summary": "TypeScript type/interface declarations for the fetch API: $Fetch, FetchOptions, hooks, context, response/error, and response-type mappings.",
+    "inputs": "None (type-only module).",
+    "outputs": "Exported interfaces and types.",
+    "should": "Declare the public and internal type contracts consumed across modules.",
+    "shouldNot": "Contain runtime/executable logic.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/fetch.ts": {
+    "summary": "Core factory createFetch producing a $Fetch client with retry, timeout, body serialization, response parsing, hooks, and raw/native/create methods.",
+    "inputs": "CreateFetchOptions (fetch impl, defaults); per-call request + FetchOptions.",
+    "outputs": "$Fetch function returning parsed _data; .raw returns FetchResponse; .native, .create.",
+    "should": "Orchestrate request lifecycle, apply retries/timeouts, serialize bodies, parse responses, invoke hooks, throw normalized errors.",
+    "shouldNot": "Define types, build URLs directly (delegates utils.url), or construct FetchError itself (delegates error.ts).",
+    "side": "shared",
+    "pure": false
+  }
+}

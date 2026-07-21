@@ -1,0 +1,578 @@
+{
+  "packages/quill/src/blots/block.ts": {
+    "summary": "Parchment BlockBlot subclass for paragraph-level lines (P) plus BlockEmbed base and delta-conversion helpers (blockDelta, bubbleFormats). Caches delta/length; handles split, insert, format at block level.",
+    "inputs": "Blot indices/lengths, format name+value, text strings, quill-delta Delta; parchment blot tree.",
+    "outputs": "Delta representations of blocks/leaves; mutated blot subtree; exported helpers.",
+    "should": "Convert a line's leaves to a Delta, bubble inline formats up the blot tree, manage block insert/split/format, invalidate its cache on mutation.",
+    "shouldNot": "Own selection, DOM event wiring, or clipboard/history logic; must not include code-token in emitted formats.",
+    "side": "Mutates DOM blot tree and internal cache.",
+    "pure": false
+  },
+  "packages/quill/src/blots/break.ts": {
+    "summary": "EmbedBlot representing a BR placeholder in an otherwise empty line; removes itself when siblings exist.",
+    "inputs": "Blot tree position (prev/next).",
+    "outputs": "Zero-length empty-string leaf; self-removal on optimize.",
+    "should": "Act as a zero-length line filler and disappear once real content surrounds it.",
+    "shouldNot": "Carry text, formats, or length.",
+    "side": "Removes itself from the blot tree during optimize.",
+    "pure": false
+  },
+  "packages/quill/src/blots/container.ts": {
+    "summary": "Thin marker subclass of parchment ContainerBlot with no added behavior; base for list/table/code containers.",
+    "inputs": "None beyond parchment ContainerBlot.",
+    "outputs": "A Container blot type.",
+    "should": "Serve as a shared base class for structural container blots.",
+    "shouldNot": "Add format, delta, or DOM logic of its own.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/blots/cursor.ts": {
+    "summary": "EmbedBlot holding a zero-width text node used to place formatting/caret when there is no adjacent text; restores surrounding TextBlots and computes selection remap.",
+    "inputs": "Scroll, DOM node, Selection instance; MutationRecords; native range.",
+    "outputs": "EmbedContextRange for selection restore; merged TextBlots.",
+    "should": "Manage the formatting cursor placeholder, merge neighboring text on restore, escape being nested inside anchors.",
+    "shouldNot": "Persist as real content or contribute length when not saving.",
+    "side": "Mutates DOM/blot tree and document selection state.",
+    "pure": false
+  },
+  "packages/quill/src/blots/embed.ts": {
+    "summary": "Base EmbedBlot for inline embeds with left/right zero-width guard text nodes; restores typed-into-guard text back into neighboring TextBlots.",
+    "inputs": "Scroll/DOM node; MutationRecords; guard Text nodes.",
+    "outputs": "EmbedContextRange; restored text blots; EmbedContextRange interface.",
+    "should": "Wrap embed content with guards and recover edits made in guard nodes as adjacent text.",
+    "shouldNot": "Handle block-level embeds or format semantics.",
+    "side": "Mutates DOM and blot tree.",
+    "pure": false
+  },
+  "packages/quill/src/blots/inline.ts": {
+    "summary": "InlineBlot subclass defining inline format nesting order and comparison, isolating/wrapping ranges so deeper formats sit correctly in the DOM tree.",
+    "inputs": "Format name+value, index/length, blot statics; ordering table.",
+    "outputs": "Reordered/wrapped inline blot subtree; compare() ordering.",
+    "should": "Enforce consistent nesting order of inline formats via optimize and formatAt.",
+    "shouldNot": "Define block formats or specific format tags.",
+    "side": "Mutates blot tree (isolate/wrap/moveChildren).",
+    "pure": false
+  },
+  "packages/quill/src/blots/scroll.ts": {
+    "summary": "Root ScrollBlot for the editor; owns the document blot tree, converts Deltas to render blocks and inserts contents, exposes line/leaf/lines lookups, batches mutations, and emits scroll lifecycle events.",
+    "inputs": "Registry, root DIV, Emitter; Deltas; indices/lengths; MutationRecords.",
+    "outputs": "Mutated blot tree, line/leaf tuples, emitted SCROLL_* events.",
+    "should": "Be the top-level content container: insert/delete/format at indices, translate Deltas into blocks, batch and emit updates, resolve lines and leaves.",
+    "shouldNot": "Own selection, clipboard, keyboard, or theme concerns; never remove itself.",
+    "side": "Mutates DOM, batches MutationRecords, emits via Emitter.",
+    "pure": false
+  },
+  "packages/quill/src/blots/text.ts": {
+    "summary": "TextBlot subclass (leaf text) plus escapeText HTML-escaping helper.",
+    "inputs": "Text string.",
+    "outputs": "Text blot; HTML-escaped string.",
+    "should": "Represent text leaves and provide HTML entity escaping for serialization.",
+    "shouldNot": "Add formatting or DOM event logic.",
+    "side": "None beyond blot tree membership.",
+    "pure": true
+  },
+  "packages/quill/src/core.ts": {
+    "summary": "Core entry point: imports Quill and core blots/modules, registers them under blots/* and modules/* paths, and re-exports Quill, Delta, Parchment, Range, and core types.",
+    "inputs": "Quill class and blot/module classes.",
+    "outputs": "Configured Quill default export with core registrations; re-exported symbols/types.",
+    "should": "Wire the minimal 'core' Quill build by registering foundational blots and modules.",
+    "shouldNot": "Register formats, themes, UI, or optional modules (that is quill.ts's job).",
+    "side": "Mutates Quill's global registry at import time.",
+    "pure": false
+  },
+  "packages/quill/src/quill.ts": {
+    "summary": "Full-build entry point: registers all formats, attributors, optional modules (syntax/table/toolbar), themes, and UI pickers onto Quill, then re-exports the assembled Quill and types.",
+    "inputs": "Core Quill plus all format/module/theme/ui classes.",
+    "outputs": "Fully-featured Quill default export; re-exports.",
+    "should": "Assemble the complete Quill distribution by registering every bundled format, module, theme, and UI helper.",
+    "shouldNot": "Contain editor logic; only aggregate and register.",
+    "side": "Mutates Quill registry/imports at import time.",
+    "pure": false
+  },
+  "packages/quill/src/core/composition.ts": {
+    "summary": "Tracks IME composition on the scroll DOM node, batching scroll mutations between compositionstart/end and emitting composition lifecycle events.",
+    "inputs": "Scroll, Emitter; DOM composition events.",
+    "outputs": "isComposing flag; emitted COMPOSITION_* events; scroll batch start/end.",
+    "should": "Coordinate IME composition so DOM changes are batched and reported, skipping Embed targets.",
+    "shouldNot": "Apply formats or resolve selection ranges.",
+    "side": "Adds DOM listeners, emits events, toggles scroll batching.",
+    "pure": false
+  },
+  "packages/quill/src/core/editor.ts": {
+    "summary": "Central content-model engine: applies Deltas to the scroll tree, performs insert/delete/format/embed operations, computes formats and semantic HTML, and diffs to produce change Deltas maintaining a canonical delta cache.",
+    "inputs": "Scroll; Deltas; indices/lengths; format maps; MutationRecords; selection info.",
+    "outputs": "Change Deltas, current-contents Delta, format maps, HTML strings.",
+    "should": "Translate between the Delta document model and the blot tree, and emit accurate change Deltas including implicit-newline handling.",
+    "shouldNot": "Own DOM selection, event listeners, or module behavior.",
+    "side": "Mutates scroll blot tree and its cached delta.",
+    "pure": false
+  },
+  "packages/quill/src/core/emitter.ts": {
+    "summary": "EventEmitter3 subclass defining Quill's event/source enums, DOM event fan-out to editor instances, and per-node DOM listener registration/dispatch.",
+    "inputs": "Event names/args; DOM events; node+handler registrations.",
+    "outputs": "Emitted events; EmitterSource type; DOM dispatch to registered handlers.",
+    "should": "Be the pub/sub hub and route global DOM events to the right editor instance.",
+    "shouldNot": "Contain editor/model logic or know about specific modules.",
+    "side": "Registers global document listeners at module load; logs events.",
+    "pure": false
+  },
+  "packages/quill/src/core/instances.ts": {
+    "summary": "Module-level WeakMap associating DOM container nodes with their Quill instance.",
+    "inputs": "DOM Node keys.",
+    "outputs": "Quill instance lookup.",
+    "should": "Provide a shared node-to-Quill registry.",
+    "shouldNot": "Hold any logic or strong references.",
+    "side": "Creates a shared mutable WeakMap singleton.",
+    "pure": false
+  },
+  "packages/quill/src/core/logger.ts": {
+    "summary": "Namespaced console logger with a global level threshold and DebugLevel type; exposes namespace factory and level setter.",
+    "inputs": "Log level, namespace string, log args.",
+    "outputs": "Per-namespace logger object; console output.",
+    "should": "Provide leveled, namespaced debug logging gated by a global level.",
+    "shouldNot": "Depend on editor internals.",
+    "side": "Writes to console; holds module-level level state.",
+    "pure": false
+  },
+  "packages/quill/src/core/module.ts": {
+    "summary": "Abstract base class for Quill modules storing the Quill instance and options with an empty DEFAULTS.",
+    "inputs": "Quill instance, partial options.",
+    "outputs": "Module base type.",
+    "should": "Define the common constructor contract shared by all modules.",
+    "shouldNot": "Implement any concrete feature behavior.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/core/quill.ts": {
+    "summary": "The Quill editor class: constructs and wires scroll/editor/selection/emitter/theme/modules, exposes the public API (insert/delete/format/getContents/selection/events), the static register/import registry, config expansion, and the Range class.",
+    "inputs": "Container element, QuillOptions; API call args (indices, deltas, formats, sources).",
+    "outputs": "Change Deltas, formats, bounds, ranges, HTML/text; emitted events; registered imports.",
+    "should": "Be the public facade orchestrating core subsystems and the registry; normalize overloaded args and emit change events.",
+    "shouldNot": "Implement low-level model or DOM-selection algorithms directly (delegates to Editor/Selection/Scroll).",
+    "side": "Mutates DOM, registry, and instance map; emits events.",
+    "pure": false
+  },
+  "packages/quill/src/core/selection.ts": {
+    "summary": "Bridges the browser Selection API and Quill's index model: normalizes native ranges, converts range<->native, computes caret/selection bounds, restores cursor, and emits SELECTION_CHANGE. Defines Range and Bounds.",
+    "inputs": "Scroll, Emitter; DOM selection/ranges; Range/index+length.",
+    "outputs": "Range objects, native ranges, Bounds; emitted selection events; Range/Bounds types.",
+    "should": "Own selection tracking and translation between DOM ranges and document indices, including bounds and cursor restore.",
+    "shouldNot": "Mutate document contents or apply formats beyond cursor placement.",
+    "side": "Reads/sets document selection, focuses root, emits events, adds listeners.",
+    "pure": false
+  },
+  "packages/quill/src/core/theme.ts": {
+    "summary": "Base Theme class managing module instantiation from options via addModule, with ThemeOptions/ThemeConstructor types and a themes registry.",
+    "inputs": "Quill, ThemeOptions; module names.",
+    "outputs": "Instantiated modules keyed by name; theme metadata types.",
+    "should": "Provide the theme lifecycle and module-loading mechanism.",
+    "shouldNot": "Contain toolbar/tooltip DOM specifics (subclasses do).",
+    "side": "Instantiates modules (which may touch DOM).",
+    "pure": false
+  },
+  "packages/quill/src/core/utils/createRegistryWithFormats.ts": {
+    "summary": "Builds a fresh parchment Registry containing the core blots plus the named formats and their required-container chains, warning on unknown formats or container cycles.",
+    "inputs": "Format name list, source Registry, debug logger.",
+    "outputs": "A new scoped Registry.",
+    "should": "Produce a registry limited to the configured formats plus mandatory core blots and required containers.",
+    "shouldNot": "Mutate the source registry or resolve editor logic.",
+    "side": "Logs errors via provided debug object.",
+    "pure": false
+  },
+  "packages/quill/src/core/utils/scrollRectIntoView.ts": {
+    "summary": "Scrolls ancestor scroll containers so a target rect becomes visible, following the CSSOM 'nearest' algorithm, with optional smooth animation; exports Rect and options types.",
+    "inputs": "Root element, target Rect, options; reads layout/computed styles.",
+    "outputs": "Adjusted scroll positions; Rect type.",
+    "should": "Compute and apply minimal scroll offsets to reveal a rect across nested scrollables.",
+    "shouldNot": "Know about blots, selection, or Quill internals.",
+    "side": "Reads DOM geometry and mutates element/window scroll positions.",
+    "pure": false
+  },
+  "packages/quill/src/types.d.ts": {
+    "summary": "Ambient TypeScript declarations for '*.svg' string imports and the QUILL_VERSION global.",
+    "inputs": "None (type-only).",
+    "outputs": "Module/global type declarations.",
+    "should": "Declare build-time SVG import and version-constant types.",
+    "shouldNot": "Contain runtime code.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/align.ts": {
+    "summary": "Block-scope alignment format defined as attribute, class, and style attributors with whitelist right/center/justify.",
+    "inputs": "DOM node alignment attribute/class/style.",
+    "outputs": "AlignAttribute/AlignClass/AlignStyle attributors.",
+    "should": "Declare the alignment format in its three attributor variants.",
+    "shouldNot": "Contain blot or editor logic.",
+    "side": "None (creates attributor singletons).",
+    "pure": true
+  },
+  "packages/quill/src/formats/background.ts": {
+    "summary": "Inline background-color format as a class attributor and a ColorAttributor-based style attributor (hex normalization).",
+    "inputs": "DOM node bg class/style.",
+    "outputs": "BackgroundClass/BackgroundStyle attributors.",
+    "should": "Declare inline background-color format variants.",
+    "shouldNot": "Reimplement color parsing (reuses ColorAttributor).",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/blockquote.ts": {
+    "summary": "Block format subclassing Block with blotName/tagName 'blockquote'.",
+    "inputs": "None beyond Block.",
+    "outputs": "Blockquote blot class.",
+    "should": "Define the blockquote block format.",
+    "shouldNot": "Add behavior beyond tag/name mapping.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/bold.ts": {
+    "summary": "Inline bold format (STRONG/B) with static create/formats and an optimize that normalizes to the preferred tag.",
+    "inputs": "DOM node/tag.",
+    "outputs": "Bold blot; formats()==true.",
+    "should": "Define bold and canonicalize its tag on optimize; serve as base for italic/strike.",
+    "shouldNot": "Handle non-inline formatting.",
+    "side": "May replace its DOM node during optimize.",
+    "pure": false
+  },
+  "packages/quill/src/formats/code.ts": {
+    "summary": "Code formats: inline Code blot plus block CodeBlock and its CodeBlockContainer (serializes to <pre>, disables spellcheck, registers container).",
+    "inputs": "DOM nodes; index/length for code() and html().",
+    "outputs": "Code/CodeBlock/CodeBlockContainer classes; code text and <pre> HTML.",
+    "should": "Define inline and block code formats and their required container/HTML serialization.",
+    "shouldNot": "Perform syntax highlighting (that's the syntax module).",
+    "side": "Registers CodeBlockContainer via Quill on register().",
+    "pure": false
+  },
+  "packages/quill/src/formats/color.ts": {
+    "summary": "Inline text color format: ColorAttributor style attributor that normalizes rgb() to hex, plus class and style attributor singletons.",
+    "inputs": "DOM node color style/class.",
+    "outputs": "ColorAttributor class; ColorClass/ColorStyle attributors.",
+    "should": "Declare inline color format and normalize computed rgb colors to hex.",
+    "shouldNot": "Handle block-level formatting.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/direction.ts": {
+    "summary": "Block-scope text direction format as attribute (dir), class, and style attributors whitelisting 'rtl'.",
+    "inputs": "DOM node direction attribute/class/style.",
+    "outputs": "DirectionAttribute/DirectionClass/DirectionStyle.",
+    "should": "Declare the RTL direction format variants.",
+    "shouldNot": "Contain blot logic.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/font.ts": {
+    "summary": "Inline font-family format: class attributor plus a StyleAttributor subclass stripping quotes; whitelist serif/monospace.",
+    "inputs": "DOM node font class/style.",
+    "outputs": "FontClass/FontStyle attributors.",
+    "should": "Declare inline font format and sanitize font-family style values.",
+    "shouldNot": "Handle sizing or other formats.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/formula.ts": {
+    "summary": "Inline Embed for KaTeX formulas; renders LaTeX into the node on create and serializes back to a span.",
+    "inputs": "LaTeX string value; window.katex.",
+    "outputs": "Formula embed DOM/value; HTML string.",
+    "should": "Render and represent math formulas via KaTeX as inline embeds.",
+    "shouldNot": "Work without KaTeX (throws if absent).",
+    "side": "Reads global window.katex and mutates DOM on create.",
+    "pure": false
+  },
+  "packages/quill/src/formats/header.ts": {
+    "summary": "Block format for H1-H6 headers; formats() returns the header level from the tag.",
+    "inputs": "DOM node tagName.",
+    "outputs": "Header blot; numeric level.",
+    "should": "Define the header block format and derive its level.",
+    "shouldNot": "Add behavior beyond level mapping.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/image.ts": {
+    "summary": "Inline image EmbedBlot with sanitized src, alt/height/width attribute formats, and a data/URL match test.",
+    "inputs": "URL string value; DOM node attributes.",
+    "outputs": "Image blot; formats map; sanitized src.",
+    "should": "Represent images, sanitize their URLs, and expose alt/size formats.",
+    "shouldNot": "Handle block embeds or uploads.",
+    "side": "Mutates its own DOM attributes on format.",
+    "pure": false
+  },
+  "packages/quill/src/formats/indent.ts": {
+    "summary": "Block-scope indent format via a ClassAttributor subclass supporting relative +1/-1 adjustment and numeric levels 1-8.",
+    "inputs": "DOM node, value ('+1'/'-1'/number).",
+    "outputs": "IndentClass attributor; normalized indent value.",
+    "should": "Apply/normalize block indentation levels including relative changes.",
+    "shouldNot": "Handle list-specific semantics.",
+    "side": "Mutates node class attributes.",
+    "pure": false
+  },
+  "packages/quill/src/formats/italic.ts": {
+    "summary": "Inline italic format subclassing Bold with EM/I tags.",
+    "inputs": "None beyond Bold.",
+    "outputs": "Italic blot class.",
+    "should": "Define italic reusing Bold's tag-canonicalization behavior.",
+    "shouldNot": "Duplicate Bold logic.",
+    "side": "Inherits Bold's optimize tag replacement.",
+    "pure": false
+  },
+  "packages/quill/src/formats/link.ts": {
+    "summary": "Inline link (A) format that sanitizes href against a protocol whitelist, sets rel/target, and exposes a shared sanitize() helper.",
+    "inputs": "URL string; DOM node.",
+    "outputs": "Link blot; href; exported sanitize().",
+    "should": "Define the link format and guard URLs against unsafe protocols.",
+    "shouldNot": "Handle non-link inline formats.",
+    "side": "Mutates DOM attributes; sanitize() reads via a throwaway anchor element.",
+    "pure": false
+  },
+  "packages/quill/src/formats/list.ts": {
+    "summary": "List formats: ListContainer (OL) and ListItem (LI) block; ListItem manages data-list value, a clickable checkbox UI toggling checked/unchecked, and registers its container.",
+    "inputs": "list value string; DOM node; scroll; UI events.",
+    "outputs": "ListContainer/ListItem classes; list format value.",
+    "should": "Define list items, their container, and checkbox interaction.",
+    "shouldNot": "Handle indentation math beyond format passthrough.",
+    "side": "Attaches UI element with DOM listeners; registers container.",
+    "pure": false
+  },
+  "packages/quill/src/formats/script.ts": {
+    "summary": "Inline superscript/subscript format (SUB/SUP) mapping value 'super'/'sub' to tags.",
+    "inputs": "value 'super'/'sub'; DOM node.",
+    "outputs": "Script blot; format string.",
+    "should": "Define script (sub/super) inline format.",
+    "shouldNot": "Add unrelated inline behavior.",
+    "side": "Creates DOM elements on create.",
+    "pure": false
+  },
+  "packages/quill/src/formats/size.ts": {
+    "summary": "Inline font-size format as class attributor (small/large/huge) and style attributor (px whitelist).",
+    "inputs": "DOM node size class/style.",
+    "outputs": "SizeClass/SizeStyle attributors.",
+    "should": "Declare inline size format variants.",
+    "shouldNot": "Contain blot logic.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/strike.ts": {
+    "summary": "Inline strikethrough format subclassing Bold with S/STRIKE tags.",
+    "inputs": "None beyond Bold.",
+    "outputs": "Strike blot class.",
+    "should": "Define strikethrough reusing Bold behavior.",
+    "shouldNot": "Duplicate Bold logic.",
+    "side": "Inherits Bold's optimize tag replacement.",
+    "pure": false
+  },
+  "packages/quill/src/formats/table.ts": {
+    "summary": "Table blot hierarchy (TableCell, TableRow, TableBody, TableContainer) with row-id tracking, cell/row offsets, merge checks, and structural operations (balance/insert/delete column/row) plus tableId generator.",
+    "inputs": "DOM nodes; row id values; column/row indices.",
+    "outputs": "Table blot classes; structural mutations; tableId().",
+    "should": "Model table structure and provide cell/row/column manipulation and balancing.",
+    "shouldNot": "Own toolbar UI or selection; delegate module-level actions to modules/table.",
+    "side": "Mutates blot tree; generates random ids.",
+    "pure": false
+  },
+  "packages/quill/src/formats/underline.ts": {
+    "summary": "Inline underline format subclassing Inline with tag U.",
+    "inputs": "None beyond Inline.",
+    "outputs": "Underline blot class.",
+    "should": "Define the underline inline format.",
+    "shouldNot": "Add behavior beyond tag mapping.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/formats/video.ts": {
+    "summary": "Block-level video embed (IFRAME) subclassing BlockEmbed; sanitizes src via Link, exposes height/width formats and an anchor HTML serialization.",
+    "inputs": "URL string; DOM node attributes.",
+    "outputs": "Video blot; formats map; sanitized src; HTML.",
+    "should": "Represent embedded videos as block embeds with sanitized URLs.",
+    "shouldNot": "Handle inline embeds or uploads.",
+    "side": "Mutates its DOM attributes.",
+    "pure": false
+  },
+  "packages/quill/src/modules/clipboard.ts": {
+    "summary": "Clipboard module: intercepts copy/cut/paste, converts pasted HTML/text into Deltas through a matcher pipeline (traverse + per-tag/style/attributor matchers), normalizes external HTML, and inserts results.",
+    "inputs": "ClipboardEvents; HTML/text; matcher config; quill instance.",
+    "outputs": "Delta conversions; clipboard data; updated document/selection.",
+    "should": "Own clipboard interchange and HTML<->Delta conversion via matchers.",
+    "shouldNot": "Define formats themselves; must not bypass sanitization for pasted content.",
+    "side": "Adds DOM listeners, reads/writes clipboard, mutates document.",
+    "pure": false
+  },
+  "packages/quill/src/modules/history.ts": {
+    "summary": "Undo/redo module recording inverse Deltas onto undo/redo stacks with time-based coalescing, transforming stacks for remote changes, and restoring selection; exposes getLastChangeIndex.",
+    "inputs": "EDITOR_CHANGE events (deltas, ranges, source); keyboard shortcuts; beforeinput.",
+    "outputs": "Undo/redo stack state; applied inverse Deltas; restored selection.",
+    "should": "Maintain and apply edit history with delay/maxStack policy and userOnly filtering.",
+    "shouldNot": "Directly manipulate DOM selection ranges or formats beyond quill API calls.",
+    "side": "Registers listeners/bindings; calls quill.updateContents/setSelection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/input.ts": {
+    "summary": "Handles beforeinput insertText/insertReplacementText and composition-start to replace selected ranges, preserving first-character formats via the Delta API.",
+    "inputs": "InputEvents; target ranges; quill selection.",
+    "outputs": "Replacement Deltas; updated selection.",
+    "should": "Normalize native text-replacement input into Quill Delta updates.",
+    "shouldNot": "Handle keyboard shortcuts or clipboard.",
+    "side": "Adds DOM listeners; mutates document and selection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/keyboard.ts": {
+    "summary": "Keyboard module: registers and matches key bindings with context (collapsed/format/prefix/suffix), provides default handlers (Enter, Backspace/Delete, indent, code/table/embed navigation), and shared deleteRange helper.",
+    "inputs": "KeyboardEvents; binding configs; ranges/context; quill instance.",
+    "outputs": "Executed binding handlers; document/selection mutations; exported deleteRange/normalize/SHORTKEY.",
+    "should": "Own key-binding dispatch and default editing key behaviors.",
+    "shouldNot": "Define formats or perform clipboard/history logic directly.",
+    "side": "Adds keydown listener; mutates document and selection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/normalizeExternalHTML/index.ts": {
+    "summary": "Runs the ordered set of external-HTML normalizers (msWord, googleDocs) over a parsed paste Document.",
+    "inputs": "Parsed Document.",
+    "outputs": "Mutated Document (normalized in place).",
+    "should": "Dispatch paste HTML through each source-specific normalizer.",
+    "shouldNot": "Contain source-specific parsing itself.",
+    "side": "Mutates the passed Document.",
+    "pure": false
+  },
+  "packages/quill/src/modules/normalizeExternalHTML/normalizers/googleDocs.ts": {
+    "summary": "Normalizer for Google Docs paste HTML: unwraps normal-weight bold spans and strips redundant BR-based empty lines when the GDocs guid marker is present.",
+    "inputs": "Parsed Document.",
+    "outputs": "Mutated Document.",
+    "should": "Clean Google Docs specific markup before conversion.",
+    "shouldNot": "Touch non-GDocs content (guarded by marker check).",
+    "side": "Mutates the Document DOM.",
+    "pure": false
+  },
+  "packages/quill/src/modules/normalizeExternalHTML/normalizers/msWord.ts": {
+    "summary": "Normalizer for MS Word paste HTML: parses mso-list styled paragraphs into real UL/LI lists with indent classes, removing ignored marker nodes, when the Word xmlns marker is present.",
+    "inputs": "Parsed Document; inline style HTML.",
+    "outputs": "Mutated Document with proper list markup.",
+    "should": "Reconstruct Word pseudo-lists into standard list elements.",
+    "shouldNot": "Affect non-Word content (guarded by xmlns check).",
+    "side": "Mutates the Document DOM.",
+    "pure": false
+  },
+  "packages/quill/src/modules/syntax.ts": {
+    "summary": "Syntax highlighting module: defines CodeToken/SyntaxCodeBlock/SyntaxCodeBlockContainer blots, runs highlight.js over code blocks on a timer, applies token formats via Delta diffing, and adds a language selector UI.",
+    "inputs": "highlight.js lib; code block text; SCROLL events; language options.",
+    "outputs": "Highlighted token blots; language UI; token Deltas.",
+    "should": "Apply syntax highlighting to code blocks and manage language selection.",
+    "shouldNot": "Work without highlight.js (throws); must not persist code-token in output deltas.",
+    "side": "Registers blots, adds timers/listeners, mutates DOM and selection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/table.ts": {
+    "summary": "Table module exposing user operations (insert/delete table/row/column, balance cells) over the table blot hierarchy and keeping cells balanced on scroll changes.",
+    "inputs": "Current selection; row/column offsets; SCROLL_OPTIMIZE mutations.",
+    "outputs": "Table structural Deltas/mutations; updated selection.",
+    "should": "Provide the table manipulation API and auto-balance cells.",
+    "shouldNot": "Define table blot structure (lives in formats/table).",
+    "side": "Registers table blots/listeners; mutates document and selection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/tableEmbed.ts": {
+    "summary": "Registers a 'table-embed' quill-delta embed type with compose/transform/invert semantics over structured TableData (rows/columns/cells), plus position/reindex helpers.",
+    "inputs": "TableData objects; Deltas; indices.",
+    "outputs": "Composed/transformed/inverted TableData; registered embed handler.",
+    "should": "Implement OT semantics for table embeds within the Delta model.",
+    "shouldNot": "Touch the DOM or blot tree.",
+    "side": "Registers a global Delta embed handler on register().",
+    "pure": false
+  },
+  "packages/quill/src/modules/toolbar.ts": {
+    "summary": "Toolbar module: builds or binds a toolbar container, attaches format handlers to buttons/selects, dispatches format/embed actions via the quill API, and reflects active formats on selection change; exports addControls and default handlers.",
+    "inputs": "Toolbar config/DOM; control clicks/changes; current range/formats.",
+    "outputs": "Toolbar DOM; format actions; active-state updates.",
+    "should": "Wire toolbar controls to formatting actions and keep them in sync with selection.",
+    "shouldNot": "Define formats or theme-specific styling.",
+    "side": "Creates/mutates DOM, adds listeners, mutates document via quill API.",
+    "pure": false
+  },
+  "packages/quill/src/modules/uiNode.ts": {
+    "summary": "Module fixing caret placement around ql-ui nodes: arrow-key bindings and a guarded selectionchange listener that moves the caret past a line's UI node.",
+    "inputs": "KeyboardEvents; selectionchange; scroll blot uiNode.",
+    "outputs": "Adjusted selection/caret position.",
+    "should": "Prevent the caret from landing before a UI node during navigation.",
+    "shouldNot": "Alter document content.",
+    "side": "Adds keydown/selectionchange listeners; mutates DOM selection.",
+    "pure": false
+  },
+  "packages/quill/src/modules/uploader.ts": {
+    "summary": "Upload module handling file drops and image pastes, filtering by mimetype and invoking a handler that (by default) reads images as data URLs and inserts them as embeds.",
+    "inputs": "Drop events/files; range; mimetype options.",
+    "outputs": "Insert Deltas for uploaded images; updated selection.",
+    "should": "Capture dropped/pasted files and insert supported ones via the configured handler.",
+    "shouldNot": "Define the image blot or perform network uploads itself.",
+    "side": "Adds drop listener; reads files; mutates document and selection.",
+    "pure": false
+  },
+  "packages/quill/src/themes/base.ts": {
+    "summary": "BaseTheme and BaseTooltip: wires document click dismissal, builds toolbar buttons/pickers with icons, provides default toolbar handlers (image/video/formula), and a tooltip base for link/video/formula editing.",
+    "inputs": "Quill, ThemeOptions; toolbar/tooltip DOM; selects/buttons; icons.",
+    "outputs": "Pickers, tooltip behavior, toolbar handlers.",
+    "should": "Provide shared theme scaffolding (pickers, tooltip, toolbar extension hooks) for concrete themes.",
+    "shouldNot": "Hard-code snow/bubble-specific layout (subclasses do).",
+    "side": "Creates DOM, adds listeners, mutates document via quill API.",
+    "pure": false
+  },
+  "packages/quill/src/themes/bubble.ts": {
+    "summary": "Bubble theme: a floating BubbleTooltip that follows the selection, its toolbar config, and BubbleTheme extending BaseTheme to build pickers/buttons and position the tooltip on selection.",
+    "inputs": "Quill, ThemeOptions; selection ranges; toolbar config.",
+    "outputs": "Bubble theme UI; positioned tooltip.",
+    "should": "Implement the bubble (inline floating toolbar) theme.",
+    "shouldNot": "Reimplement base picker/toolbar mechanics (inherits BaseTheme).",
+    "side": "Creates DOM, listens to selection changes, positions tooltip.",
+    "pure": false
+  },
+  "packages/quill/src/themes/snow.ts": {
+    "summary": "Snow theme: a fixed toolbar with a SnowTooltip for link editing/preview, default toolbar config, and SnowTheme extending BaseTheme to build pickers/buttons and wire link interactions.",
+    "inputs": "Quill, ThemeOptions; toolbar config; link clicks.",
+    "outputs": "Snow theme UI; link tooltip behavior.",
+    "should": "Implement the snow (fixed toolbar) theme and its link tooltip.",
+    "shouldNot": "Reimplement base picker/toolbar mechanics (inherits BaseTheme).",
+    "side": "Creates DOM, adds listeners, mutates document via quill API.",
+    "pure": false
+  },
+  "packages/quill/src/ui/color-picker.ts": {
+    "summary": "ColorPicker extends Picker to render color swatches, mark primary colors, and reflect the chosen color onto the label icon fill/stroke.",
+    "inputs": "Select element, label HTML; option values.",
+    "outputs": "Color picker DOM; selection reflected on label.",
+    "should": "Provide the color-swatch picker variant.",
+    "shouldNot": "Own format application (toolbar does).",
+    "side": "Creates/mutates DOM.",
+    "pure": false
+  },
+  "packages/quill/src/ui/icon-picker.ts": {
+    "summary": "IconPicker extends Picker to render each item as an icon and mirror the selected item's icon into the label.",
+    "inputs": "Select element; icon map.",
+    "outputs": "Icon picker DOM; label icon updates.",
+    "should": "Provide the icon-based picker variant.",
+    "shouldNot": "Own format logic.",
+    "side": "Creates/mutates DOM.",
+    "pure": false
+  },
+  "packages/quill/src/ui/icons.ts": {
+    "summary": "Aggregates SVG icon imports into a keyed map of format-name to icon string (or per-value sub-maps).",
+    "inputs": "SVG string imports.",
+    "outputs": "Default export icon lookup object.",
+    "should": "Provide the central icon registry for toolbar/pickers.",
+    "shouldNot": "Contain rendering logic.",
+    "side": "None.",
+    "pure": true
+  },
+  "packages/quill/src/ui/picker.ts": {
+    "summary": "Accessible custom dropdown replacing a native select: builds label/options DOM, syncs selection both ways, handles keyboard/mouse toggling, aria attributes, and change dispatch.",
+    "inputs": "HTMLSelectElement; user click/keydown; select change.",
+    "outputs": "Picker DOM; synchronized select value; change events.",
+    "should": "Provide the base accessible picker widget mirroring a select.",
+    "shouldNot": "Know about Quill formats or the editor model.",
+    "side": "Creates/mutates DOM, adds listeners, dispatches events.",
+    "pure": false
+  },
+  "packages/quill/src/ui/tooltip.ts": {
+    "summary": "Base Tooltip widget added to the editor container that shows/hides and positions itself relative to a bounds rect, flipping/shifting to stay within the bounds container.",
+    "inputs": "Quill; bounds container; reference Bounds.",
+    "outputs": "Positioned tooltip DOM; shift amount.",
+    "should": "Provide generic tooltip positioning and visibility.",
+    "shouldNot": "Contain link/video editing logic (BaseTooltip subclass does).",
+    "side": "Creates DOM, reads geometry, mutates styles/classes; may add scroll listener.",
+    "pure": false
+  }
+}

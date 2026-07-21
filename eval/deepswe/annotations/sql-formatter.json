@@ -1,0 +1,803 @@
+{
+  "src/index.ts": {
+    "summary": "Public package entry point; re-exports the format/formatDialect API, expandPhrases, ConfigError, every dialect DialectOptions object, and the public types.",
+    "inputs": "none (module of re-exports)",
+    "outputs": "named exports: functions, dialect objects, and types",
+    "should": "Barrel-export the library's public surface; stay in sync with the dialect list.",
+    "shouldNot": "Contain logic, formatting, or tokenizing behavior of its own.",
+    "side": "none",
+    "pure": true
+  },
+  "src/sqlFormatter.ts": {
+    "summary": "Top-level format() and formatDialect() entry functions; maps a language name to a DialectOptions, merges defaults, validates config, and runs Formatter.",
+    "inputs": "query string, FormatOptionsWithLanguage or FormatOptionsWithDialect config",
+    "outputs": "formatted SQL string; throws ConfigError/Error on bad input",
+    "should": "Resolve dialect by name (incl. tsql alias), apply defaultOptions, validate, delegate to Formatter.",
+    "shouldNot": "Tokenize, parse, or format directly; know dialect internals.",
+    "side": "none",
+    "pure": true
+  },
+  "src/FormatOptions.ts": {
+    "summary": "Type-only module declaring the FormatOptions interface and the case/indent/newline string-literal option types.",
+    "inputs": "none",
+    "outputs": "TypeScript types/interfaces",
+    "should": "Define the user-facing formatting option shape.",
+    "shouldNot": "Contain runtime code or default values.",
+    "side": "none",
+    "pure": true
+  },
+  "src/allDialects.ts": {
+    "summary": "Barrel that re-exports every dialect's DialectOptions object from its formatter module, used by sqlFormatter to look dialects up by name.",
+    "inputs": "none",
+    "outputs": "re-exported dialect objects",
+    "should": "Aggregate all dialect definitions in one namespace.",
+    "shouldNot": "Add logic or transform the dialects.",
+    "side": "none",
+    "pure": true
+  },
+  "src/dialect.ts": {
+    "summary": "Defines DialectOptions/Dialect types and createDialect(): a cached factory that instantiates a Tokenizer and processes format options into lookup maps.",
+    "inputs": "DialectOptions object",
+    "outputs": "Dialect object (tokenizer + processed formatOptions)",
+    "should": "Cache built dialects by options identity; precompute oneline-clause lookup records.",
+    "shouldNot": "Format or tokenize; hold user FormatOptions.",
+    "side": "maintains a module-level Map cache",
+    "pure": false
+  },
+  "src/expandPhrases.ts": {
+    "summary": "Expands bracket/brace SQL phrase templates like 'CREATE [OR REPLACE] TABLE' into every concrete keyword-sequence string via a small recursive-descent parser.",
+    "inputs": "array of phrase-template strings",
+    "outputs": "flat array of expanded keyword strings",
+    "should": "Parse [] optional / {} mandatory-alternation blocks and enumerate all combinations; throw on unbalanced parens.",
+    "shouldNot": "Know about tokenizing or SQL semantics.",
+    "side": "none",
+    "pure": true
+  },
+  "src/validateConfig.ts": {
+    "summary": "Defines ConfigError and validateConfig(), which rejects removed options, non-positive expressionWidth, and empty custom paramType regexes; warns on non-string params.",
+    "inputs": "FormatOptions config object",
+    "outputs": "same config if valid; throws ConfigError otherwise",
+    "should": "Enumerate and reject each invalid/removed option case.",
+    "shouldNot": "Mutate config or apply defaults.",
+    "side": "console.warn on non-string params",
+    "pure": false
+  },
+  "src/utils.ts": {
+    "summary": "Small generic string/array helpers (dedupe, last, sortByLengthDesc, maxLength, equalizeWhitespace, isMultiline) plus the Optional type utility.",
+    "inputs": "strings/arrays per function",
+    "outputs": "transformed strings/arrays/booleans",
+    "should": "Stay tiny, general, dependency-free.",
+    "shouldNot": "Contain SQL- or formatter-specific logic.",
+    "side": "sortByLengthDesc sorts its argument in place",
+    "pure": false
+  },
+  "src/formatter/Formatter.ts": {
+    "summary": "Main Formatter class: parses a query into StatementNodes, formats each via ExpressionFormatter, joins them with blank lines, and appends semicolons.",
+    "inputs": "Dialect, FormatOptions; format(query string)",
+    "outputs": "final formatted SQL string (trimmed)",
+    "should": "Orchestrate parse->format per statement; honor linesBetweenQueries and newlineBeforeSemicolon.",
+    "shouldNot": "Implement node-level formatting or tokenizing itself.",
+    "side": "none (constructs a Params instance)",
+    "pure": true
+  },
+  "src/formatter/ExpressionFormatter.ts": {
+    "summary": "Core recursive AST formatter: walks each node type (clauses, parens, CASE, joins, operators, comments, keywords) emitting tokens and whitespace into a Layout, handling case-conversion and inline vs multiline.",
+    "inputs": "cfg, dialectCfg, params, layout; format(AstNode[])",
+    "outputs": "populated Layout",
+    "should": "Render every AstNode type; apply keyword/identifier/dataType casing; try inline layout then fall back.",
+    "shouldNot": "Parse or tokenize; access the compiler/lexer directly.",
+    "side": "mutates shared Layout and Params positional index",
+    "pure": false
+  },
+  "src/formatter/Indentation.ts": {
+    "summary": "Indentation class tracking a stack of top-level and block-level indent markers to compute the current indent depth.",
+    "inputs": "indent string; increase/decrease calls",
+    "outputs": "current level and single-indent string",
+    "should": "Push/pop indent types; discard nested top-levels when a block closes.",
+    "shouldNot": "Emit output strings or know token types.",
+    "side": "mutates internal indentTypes stack",
+    "pure": false
+  },
+  "src/formatter/Layout.ts": {
+    "summary": "Defines the WS whitespace-modifier enum and Layout class that accumulates token strings + whitespace items and renders them to a final string, trimming redundant whitespace.",
+    "inputs": "Indentation; add(WS | string ...)",
+    "outputs": "toString() SQL string; getLayoutItems()",
+    "should": "Model spacing/newlines/indent as items and collapse whitespace on demand.",
+    "shouldNot": "Know AST node types or config options.",
+    "side": "mutates internal items array",
+    "pure": false
+  },
+  "src/formatter/InlineLayout.ts": {
+    "summary": "InlineLayout subclass of Layout that measures line width and throws InlineLayoutError when a newline appears or expressionWidth is exceeded.",
+    "inputs": "expressionWidth; add(WS | string ...)",
+    "outputs": "single-line layout or throws InlineLayoutError",
+    "should": "Track running length/trailing space; reject multiline or over-wide expressions.",
+    "shouldNot": "Apply indentation or format node semantics.",
+    "side": "mutates length/trailingSpace and parent items",
+    "pure": false
+  },
+  "src/formatter/Params.ts": {
+    "summary": "Params class resolving parameter placeholders to substitution values, supporting named-key and positional-index lookup.",
+    "inputs": "ParamItems map / string[] / undefined; get({key,text})",
+    "outputs": "substituted string (or original text when no params)",
+    "should": "Return keyed value or next positional value; expose/restore positional index.",
+    "shouldNot": "Parse placeholders or format output.",
+    "side": "advances internal positional index",
+    "pure": false
+  },
+  "src/formatter/config.ts": {
+    "summary": "Config helper functions: indentString() computes one indent step from options and isTabularStyle() detects tabular indent modes.",
+    "inputs": "FormatOptions",
+    "outputs": "indent string / boolean",
+    "should": "Derive indentation string from tabWidth/useTabs/indentStyle.",
+    "shouldNot": "Hold state or format nodes.",
+    "side": "none",
+    "pure": true
+  },
+  "src/formatter/tabularStyle.ts": {
+    "summary": "toTabularFormat() pads keyword text to a fixed 10-char column for tabular indent styles, and isTabularToken() flags which token types get tabular treatment.",
+    "inputs": "token text + IndentStyle / TokenType",
+    "outputs": "padded keyword string / boolean",
+    "should": "Left/right-pad keywords in tabular mode; pass through in standard mode.",
+    "shouldNot": "Manage indentation levels or emit whitespace.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/Tokenizer.ts": {
+    "summary": "Tokenizer class that builds an ordered list of regex TokenRules from a dialect's TokenizerOptions (comments, keywords, params, operators, identifiers) and tokenizes input via TokenizerEngine.",
+    "inputs": "TokenizerOptions, dialect name; tokenize(input, paramTypeOverrides)",
+    "outputs": "Token[] (optionally postProcessed)",
+    "should": "Order rules for correct precedence; canonicalize keywords to uppercase; support per-call param overrides.",
+    "shouldNot": "Parse grammar or format output.",
+    "side": "none (caches rule arrays on the instance)",
+    "pure": true
+  },
+  "src/lexer/TokenizerEngine.ts": {
+    "summary": "TokenizerEngine plus TokenRule/RegExpLike interfaces: scans an input string left-to-right, skipping whitespace and matching the first applicable rule to emit Tokens; throws a positioned parse error on no match.",
+    "inputs": "TokenRule[], dialect name; tokenize(input)",
+    "outputs": "Token[]",
+    "should": "Advance by matched length, attach precedingWhitespace, report line/col on failure.",
+    "shouldNot": "Build rules or know dialect specifics.",
+    "side": "mutates internal index/input during a run",
+    "pure": true
+  },
+  "src/lexer/TokenizerOptions.ts": {
+    "summary": "Type-only module declaring TokenizerOptions and its supporting types (IdentChars, QuoteType, VariableType, ParamTypes, CustomParameter) that describe a dialect's lexical config.",
+    "inputs": "none",
+    "outputs": "TypeScript types",
+    "should": "Define the shape each dialect fills in for tokenizing.",
+    "shouldNot": "Contain runtime code.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/disambiguateTokens.ts": {
+    "summary": "Post-tokenize pass that resolves ambiguities: demotes keywords next to a dot or non-followed-by-paren function names to identifiers, and promotes data types before ( or [ to parameterized/array variants.",
+    "inputs": "Token[]",
+    "outputs": "adjusted Token[]",
+    "should": "Retype tokens based on neighboring non-comment tokens.",
+    "shouldNot": "Emit output or depend on formatting config.",
+    "side": "none (returns new tokens)",
+    "pure": true
+  },
+  "src/lexer/lineColFromIndex.ts": {
+    "summary": "lineColFromIndex() converts a character index in source text into 1-based line and column numbers.",
+    "inputs": "source string, index number",
+    "outputs": "{ line, col }",
+    "should": "Count newlines up to the index.",
+    "shouldNot": "Do anything else.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/regexFactory.ts": {
+    "summary": "Builder functions that assemble sticky RegExps for each lexical category (comments, strings, identifiers, reserved words, parameters, variables, operators, parens) plus the quotePatterns table of quote-style regexes.",
+    "inputs": "dialect lexical config (keyword lists, IdentChars, QuoteTypes, etc.)",
+    "outputs": "RegExp objects / pattern strings",
+    "should": "Encode SQL quoting/identifier/keyword matching rules; sort keywords longest-first.",
+    "shouldNot": "Execute tokenizing or hold state.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/regexUtil.ts": {
+    "summary": "Low-level regex string helpers: escapeRegExp, patternToRegex, case-insensitive/dash/prefix pattern builders, and the WHITESPACE_REGEX constant.",
+    "inputs": "pattern strings / prefix configs",
+    "outputs": "escaped patterns and RegExp objects",
+    "should": "Provide reusable regex-building primitives for regexFactory.",
+    "shouldNot": "Know SQL categories or tokenize.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/token.ts": {
+    "summary": "Defines the TokenType enum, Token interface, EOF token helpers, and predicates (testToken, isToken table, isReserved, isLogicalOperator) used across lexer and formatter.",
+    "inputs": "TokenType/Token values",
+    "outputs": "types, constants, boolean predicates",
+    "should": "Enumerate token categories and classify tokens.",
+    "shouldNot": "Tokenize input or build regexes.",
+    "side": "none",
+    "pure": true
+  },
+  "src/lexer/NestedComment.ts": {
+    "summary": "NestedComment class implementing the RegExpLike interface to match balanced, nestable /* ... */ block comments that a plain regex cannot.",
+    "inputs": "input string via exec(); lastIndex",
+    "outputs": "matched comment string[] or null",
+    "should": "Track nesting depth of /* and */ to find the full comment span.",
+    "shouldNot": "Handle other token types.",
+    "side": "mutates its own lastIndex during matching",
+    "pure": false
+  },
+  "src/parser/ast.ts": {
+    "summary": "Type-only module declaring the NodeType enum and every AST node interface (statement, clause, function_call, parenthesis, CASE, limit, literal, identifier, keyword, comments, etc.) plus the AstNode union.",
+    "inputs": "none",
+    "outputs": "TypeScript AST types",
+    "should": "Define the parse-tree node shapes consumed by the formatter.",
+    "shouldNot": "Contain runtime logic.",
+    "side": "none",
+    "pure": true
+  },
+  "src/parser/createParser.ts": {
+    "summary": "createParser() wires a dialect Tokenizer through disambiguateTokens and a LexerAdapter into a Nearley parser over the compiled grammar, returning statements or throwing on invalid/ambiguous SQL.",
+    "inputs": "Tokenizer; parse(sql, paramTypeOverrides)",
+    "outputs": "StatementNode[]; throws on parse error",
+    "should": "Feed tokens to Nearley and unwrap the single valid result.",
+    "shouldNot": "Format output or define grammar rules itself.",
+    "side": "shares mutable paramTypesOverrides with the tokenizer closure",
+    "pure": false
+  },
+  "src/parser/LexerAdapter.ts": {
+    "summary": "LexerAdapter bridges the project's Tokenizer to the Nearley lexer interface (reset/next/save/formatError/has), yielding tokens one at a time.",
+    "inputs": "a tokenize(chunk)->Token[] function; Nearley lexer calls",
+    "outputs": "tokens for Nearley; formatted error strings",
+    "should": "Adapt token stream and expose token-type membership to Nearley.",
+    "shouldNot": "Do formatting or grammar decisions.",
+    "side": "mutates internal index/tokens/input across next() calls",
+    "pure": false
+  },
+  "src/languages/sql/sql.formatter.ts": {
+    "summary": "Builds and exports the sql DialectOptions for the base/standard SQL dialect (no dialect-specific postProcess): assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `sql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/sql/sql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in sql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/sql/sql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved sql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/bigquery/bigquery.formatter.ts": {
+    "summary": "Builds and exports the bigquery DialectOptions for BigQuery, with its own postProcess that detects array OFFSET subscripts and combines STRUCT/ARRAY<...> parameterized types: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `bigquery` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/bigquery/bigquery.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in bigquery function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/bigquery/bigquery.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved bigquery keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/clickhouse/clickhouse.formatter.ts": {
+    "summary": "Builds and exports the clickhouse DialectOptions for ClickHouse, with custom {name:Type} parameters and a postProcess retyping GRANT SELECT and SET(...) tokens: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `clickhouse` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/clickhouse/clickhouse.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in clickhouse function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/clickhouse/clickhouse.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved clickhouse keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2/db2.formatter.ts": {
+    "summary": "Builds and exports the db2 DialectOptions for IBM Db2: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `db2` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2/db2.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in db2 function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2/db2.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved db2 keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2i/db2i.formatter.ts": {
+    "summary": "Builds and exports the db2i DialectOptions for IBM Db2 for i (db2i): assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `db2i` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2i/db2i.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in db2i function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/db2i/db2i.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved db2i keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/duckdb/duckdb.formatter.ts": {
+    "summary": "Builds and exports the duckdb DialectOptions for DuckDB: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `duckdb` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/duckdb/duckdb.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in duckdb function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/duckdb/duckdb.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved duckdb keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/hive/hive.formatter.ts": {
+    "summary": "Builds and exports the hive DialectOptions for Apache Hive: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `hive` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/hive/hive.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in hive function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/hive/hive.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved hive keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mariadb/mariadb.formatter.ts": {
+    "summary": "Builds and exports the mariadb DialectOptions for MariaDB, reusing the shared likeMariaDb postProcess (SET/VALUES retyping): assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `mariadb` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mariadb/mariadb.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in mariadb function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mariadb/mariadb.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved mariadb keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mysql/mysql.formatter.ts": {
+    "summary": "Builds and exports the mysql DialectOptions for MySQL, reusing the shared likeMariaDb postProcess: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `mysql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mysql/mysql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in mysql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mysql/mysql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved mysql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/n1ql/n1ql.formatter.ts": {
+    "summary": "Builds and exports the n1ql DialectOptions for Couchbase N1QL: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `n1ql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/n1ql/n1ql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in n1ql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/n1ql/n1ql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved n1ql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/plsql/plsql.formatter.ts": {
+    "summary": "Builds and exports the plsql DialectOptions for Oracle PL/SQL, with q'' strings and a postProcess retyping BY SET: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `plsql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/plsql/plsql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in plsql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/plsql/plsql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved plsql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/postgresql/postgresql.formatter.ts": {
+    "summary": "Builds and exports the postgresql DialectOptions for PostgreSQL, with nested block comments, dollar-quoting, and a large operator set: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `postgresql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/postgresql/postgresql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in postgresql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/postgresql/postgresql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved postgresql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/redshift/redshift.formatter.ts": {
+    "summary": "Builds and exports the redshift DialectOptions for Amazon Redshift: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `redshift` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/redshift/redshift.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in redshift function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/redshift/redshift.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved redshift keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/singlestoredb/singlestoredb.formatter.ts": {
+    "summary": "Builds and exports the singlestoredb DialectOptions for SingleStoreDB, reusing the shared likeMariaDb postProcess: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `singlestoredb` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/singlestoredb/singlestoredb.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in singlestoredb function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/singlestoredb/singlestoredb.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved singlestoredb keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/snowflake/snowflake.formatter.ts": {
+    "summary": "Builds and exports the snowflake DialectOptions for Snowflake: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `snowflake` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/snowflake/snowflake.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in snowflake function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/snowflake/snowflake.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved snowflake keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/spark/spark.formatter.ts": {
+    "summary": "Builds and exports the spark DialectOptions for Apache Spark SQL, with a postProcess retyping WINDOW(...) and ITEMS: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `spark` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/spark/spark.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in spark function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/spark/spark.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved spark keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/sqlite/sqlite.formatter.ts": {
+    "summary": "Builds and exports the sqlite DialectOptions for SQLite: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `sqlite` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/sqlite/sqlite.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in sqlite function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/sqlite/sqlite.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved sqlite keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/tidb/tidb.formatter.ts": {
+    "summary": "Builds and exports the tidb DialectOptions for TiDB, reusing the shared likeMariaDb postProcess: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `tidb` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/tidb/tidb.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in tidb function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/tidb/tidb.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved tidb keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/transactsql/transactsql.formatter.ts": {
+    "summary": "Builds and exports the transactsql DialectOptions for Transact-SQL (SQL Server / tsql): assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `transactsql` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/transactsql/transactsql.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in transactsql function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/transactsql/transactsql.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved transactsql keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/trino/trino.formatter.ts": {
+    "summary": "Builds and exports the trino DialectOptions for Trino / Presto: assembles reserved clause/select/join/set-operation/keyword-phrase lists via expandPhrases and wires tokenizer + format options.",
+    "inputs": "imports keyword/function/dataType lists; expandPhrases templates",
+    "outputs": "the `trino` DialectOptions object",
+    "should": "Declare this dialect's reserved words, quoting, operators, params, and oneline clauses.",
+    "shouldNot": "Tokenize, parse, or format directly (only supplies config; any postProcess only retypes tokens).",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/trino/trino.functions.ts": {
+    "summary": "Exports the `functions` string array of built-in trino function names used as reserved-function-name keywords by the tokenizer.",
+    "inputs": "none",
+    "outputs": "functions: string[]",
+    "should": "List this dialect's function names as data.",
+    "shouldNot": "Contain logic, formatting, or non-function keywords.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/trino/trino.keywords.ts": {
+    "summary": "Exports the `keywords` and `dataTypes` string arrays of reserved trino keywords and data-type names consumed by the tokenizer.",
+    "inputs": "none",
+    "outputs": "keywords: string[], dataTypes: string[]",
+    "should": "List this dialect's reserved keywords and data types as data.",
+    "shouldNot": "Contain logic, formatting, or function names.",
+    "side": "none",
+    "pure": true
+  },
+  "src/languages/mariadb/likeMariaDb.ts": {
+    "summary": "Shared MariaDB-family postProcess() reused by mariadb/mysql/tidb/singlestoredb: retypes SET before '(' and VALUES after '=' as function-name tokens.",
+    "inputs": "Token[]",
+    "outputs": "adjusted Token[]",
+    "should": "Disambiguate SET-datatype and VALUES() function from the SET/VALUES clauses.",
+    "shouldNot": "Format output or define dialect config.",
+    "side": "none (returns new tokens)",
+    "pure": true
+  }
+}
