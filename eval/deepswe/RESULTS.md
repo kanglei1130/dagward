@@ -23,6 +23,32 @@ Same agent, no dagward context. Behavioral verdict from the official
   growth from new modules (ts-pattern, superjson); awilix edited existing files
   with no new inter-file edges (0 delta).
 
+## Treatment arm v1 (with dagward — thin: ARCHITECTURE.md + cycle-gate)
+
+Same tasks, agent given `dagward-out/ARCHITECTURE.md` + `annotations.jsonl` and
+a mandatory `dagward init` cycle-gate before commit.
+
+| Task | Control | With dagward (v1) | Structural difference |
+|---|---|---|---|
+| ts-pattern | reward=1 (85/85) | reward=1 (85/85) | none — both +2 files, no cycle |
+| superjson | reward=1 (80/80) | reward=0 (79/80) | none — both +4 files, no cycle |
+| awilix | reward=0 (23/24) | reward=1 (24/24) | none — both no cycle |
+
+- Pass rate 2/3 both arms; one task flipped each direction (**variance**, not signal).
+- **Zero cycles introduced in all six runs.**
+- **Why v1 is weak:** the agent read a graph-*derived* report and a single cycle
+  scalar; `annotations.jsonl` was empty (0/20 files have authored contracts on
+  these OSS repos); and the cycle-gate never fired (count stayed 1). So
+  `graph.files.json` itself was never queried — v1 tests "did an architecture doc
+  help", not "does the file graph help".
+
+## Treatment arm v2 (with dagward — graph.files.json in the loop)
+
+Agent must query `graph.files.json` via `gq.mjs` before editing each file:
+`cone <file>` (what to understand), `affects <file>` (blast radius), `hubs`.
+This puts the file graph's structured outputs directly in the agent's decisions.
+Results pending.
+
 ## Key findings
 
 1. **The pipeline works end-to-end, Docker-free and key-free.** Native verifier
