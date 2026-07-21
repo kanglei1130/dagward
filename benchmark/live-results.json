@@ -1,39 +1,6 @@
 {
-  "note": "REAL = live general-purpose subagent runs on hihome. tokens = total subagent tokens (incl. ~15k fixed agent overhead). time = wall-clock ms. Same overhead floor both conditions, so within-task comparison is valid.",
+  "note": "REAL live subagent runs on hihome. baseline = reads source (dagward-out forbidden). dagward = optimized: `dagward query`/`affects` commands + lean grep-able annotations index. input incl. cache reads.",
   "runs": [
-    {
-      "task": "1-architecture",
-      "cond": "dagward-cache",
-      "tokens": 21528,
-      "ms": 33715,
-      "calls": 3,
-      "correct": true,
-      "answer": "0 file/folder cycles, 6 fn self-loops; full layer stack",
-      "input": 57269,
-      "output": 2095
-    },
-    {
-      "task": "3-change-impact",
-      "cond": "dagward-cache",
-      "tokens": 16641,
-      "ms": 24681,
-      "calls": 2,
-      "correct": true,
-      "answer": "8 files (graph reverse-cone)",
-      "input": 47219,
-      "output": 643
-    },
-    {
-      "task": "4-diff-review",
-      "cond": "dagward-cache",
-      "tokens": 17032,
-      "ms": 25894,
-      "calls": 3,
-      "correct": true,
-      "answer": "CYCLE",
-      "input": 64282,
-      "output": 1087
-    },
     {
       "task": "4-diff-review",
       "cond": "baseline",
@@ -91,28 +58,6 @@
     },
     {
       "task": "7-add-db-field",
-      "cond": "dagward-cache",
-      "tokens": 32539,
-      "ms": 61278,
-      "calls": 4,
-      "correct": true,
-      "answer": "schema diff + mirrored-types edit; noted data-layer files via annotations",
-      "input": 107404,
-      "output": 3852
-    },
-    {
-      "task": "6-add-api-route",
-      "cond": "dagward-cache",
-      "tokens": 21133,
-      "ms": 72738,
-      "calls": 7,
-      "correct": true,
-      "answer": "correct POST route; annotation revealed setlicense GET-mutation flaw",
-      "input": 144973,
-      "output": 3589
-    },
-    {
-      "task": "7-add-db-field",
       "cond": "baseline",
       "tokens": 37136,
       "ms": 80060,
@@ -123,15 +68,64 @@
       "output": 5004
     },
     {
-      "task": "5-agent-ranks-page",
-      "cond": "dagward-cache",
-      "tokens": 30387,
-      "ms": 96815,
-      "calls": 7,
+      "task": "1-architecture",
+      "cond": "dagward",
       "correct": true,
-      "answer": "full page, same useAgentLoyalty store as baseline",
-      "input": 184263,
-      "output": 6347
+      "input": 57269,
+      "output": 2095,
+      "ms": 33715,
+      "calls": 3,
+      "via": "ARCHITECTURE.md"
+    },
+    {
+      "task": "3-change-impact",
+      "cond": "dagward",
+      "correct": true,
+      "input": 30958,
+      "output": 317,
+      "ms": 7930,
+      "calls": 1,
+      "via": "dagward affects"
+    },
+    {
+      "task": "4-diff-review",
+      "cond": "dagward",
+      "correct": true,
+      "input": 52394,
+      "output": 708,
+      "ms": 15669,
+      "calls": 2,
+      "via": "dagward affects + index"
+    },
+    {
+      "task": "5-agent-ranks-page",
+      "cond": "dagward",
+      "correct": true,
+      "input": 110306,
+      "output": 4472,
+      "ms": 64775,
+      "calls": 9,
+      "via": "lean index + dagward query"
+    },
+    {
+      "task": "6-add-api-route",
+      "cond": "dagward",
+      "correct": true,
+      "input": 96186,
+      "output": 1321,
+      "ms": 34823,
+      "calls": 7,
+      "via": "index + dagward query"
+    },
+    {
+      "task": "7-add-db-field",
+      "cond": "dagward",
+      "correct": true,
+      "input": 184306,
+      "output": 4227,
+      "ms": 60520,
+      "calls": 8,
+      "via": "lean index + dagward query"
     }
   ]
 }

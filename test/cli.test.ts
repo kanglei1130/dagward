@@ -19,6 +19,7 @@ describe("cli", () => {
     const written = fs.readdirSync(tmpDir).sort();
     expect(written).toEqual([
       "ARCHITECTURE.md",
+      "annotations.jsonl",
       "graph.files.json",
       "graph.folders.json",
       "graph.functions.json",
@@ -121,6 +122,42 @@ describe("cli", () => {
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "dagward-checkempty-"));
     try {
       expect(main(["check", emptyDir])).toBe(2);
+    } finally {
+      fs.rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+
+  it("query and affects answer from dagward-out without a tsconfig", () => {
+    const fixture = path.join(__dirname, "fixtures", "simple");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dagward-query-"));
+    const logs: string[] = [];
+    try {
+      expect(main(["init", fixture, "--out", dir])).toBe(0);
+      const spy = vi.spyOn(console, "log").mockImplementation((m: string) => {
+        logs.push(m);
+      });
+      try {
+        expect(main(["query", "src/a.ts", "--out", dir])).toBe(0);
+        expect(main(["affects", "src/b/index.ts", "--out", dir])).toBe(0);
+      } finally {
+        spy.mockRestore();
+      }
+      const query = JSON.parse(logs[0]) as { id: string; imports: string[] };
+      expect(query.id).toBe("src/a.ts");
+      expect(query.imports).toContain("src/b/index.ts");
+
+      const impact = JSON.parse(logs[1]) as { affects: string[] };
+      expect(impact.affects).toContain("src/a.ts");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("query without prior graph outputs returns 2", () => {
+    const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "dagward-qempty-"));
+    try {
+      expect(main(["query", "src/a.ts", "--out", emptyDir])).toBe(2);
+      expect(main(["query"])).toBe(2); // missing file argument
     } finally {
       fs.rmSync(emptyDir, { recursive: true, force: true });
     }

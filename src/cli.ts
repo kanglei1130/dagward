@@ -11,6 +11,7 @@ import { buildFunctionGraph } from "./functionGraph.js";
 import { carryAnnotations, serializeGraph, type Graph } from "./graph.js";
 import { ConfigError, loadProject } from "./project.js";
 import { renderArchitectureMd } from "./report.js";
+import { affects, queryNode, renderAnnotationsIndex } from "./query.js";
 import { loadRuleSet } from "./rules.js";
 import { buildUnifiedGraph } from "./unifiedGraph.js";
 import { findUnusedImports } from "./unusedImports.js";
@@ -19,18 +20,23 @@ import { renderVizHtml, type VizInput } from "./viz.js";
 const HELP = `dagward — multi-level dependency graphs for TypeScript projects
 
 Usage:
-  dagward init  [dir] [options]   Analyze the project, write graphs + report (dir defaults to .)
-  dagward check [dir] [options]   Check the dependency graph against dagward.yml rules
-  dagward viz   [dir] [options]   Render dagward-out graphs to an interactive viz.html
+  dagward init    [dir] [options]   Analyze the project, write graphs + report (dir defaults to .)
+  dagward check   [dir] [options]   Check the dependency graph against dagward.yml rules
+  dagward viz     [dir] [options]   Render dagward-out graphs to an interactive viz.html
+  dagward query   <file> [options]  Print one file's contract + direct imports/importers
+  dagward affects <file> [options]  Print everything that breaks if <file> changes
 
 Options:
   --project <path>   Explicit tsconfig.json (default: nearest to [dir])
-  --out <dir>        Output directory (default: <dir>/dagward-out)
+  --out <dir>        Output directory (default: <dir>/dagward-out, or ./dagward-out for queries)
   --no-open          viz: do not open viz.html in the browser
   --help             Show this help
   --version          Show version
 
-Outputs: graph.folders.json, graph.files.json, graph.functions.json, ARCHITECTURE.md
+Outputs: graph.{folders,files,functions,unified}.json, annotations.jsonl, ARCHITECTURE.md
+
+query/affects read dagward-out and print JSON — no source reads, no re-analysis.
+For a grep-only lookup: grep '"id":"src/foo.ts"' dagward-out/annotations.jsonl
 
 Exit codes: 0 ok, 1 rule violations (check), 2 config error.`;
 
@@ -115,9 +121,16 @@ export function main(argv: string[]): number {
   }
 
   const [command, dirArg] = positionals;
-  if (command !== "init" && command !== "check" && command !== "viz") {
+  const known = ["init", "check", "viz", "query", "affects"];
+  if (!known.includes(command)) {
     console.error(command ? `Unknown command: ${command}` : HELP);
     return command ? 2 : 0;
+  }
+
+  // For query/affects the positional is a file id, not a directory.
+  if (command === "query" || command === "affects") {
+    const queryOut = path.resolve(values.out ?? "dagward-out");
+    return runQuery(command, queryOut, dirArg);
   }
 
   const targetDir = path.resolve(dirArg ?? ".");
@@ -164,6 +177,9 @@ export function main(argv: string[]): number {
     writeGraph(path.join(outDir, "graph.files.json"), files);
     writeGraph(path.join(outDir, "graph.functions.json"), functions);
     writeGraph(path.join(outDir, "graph.unified.json"), buildUnifiedGraph(files, functions));
+    // Grep-able one-line-per-file contracts: a lookup costs one grep, not a
+    // parse of the whole file graph.
+    fs.writeFileSync(path.join(outDir, "annotations.jsonl"), renderAnnotationsIndex(files));
     fs.writeFileSync(
       path.join(outDir, "ARCHITECTURE.md"),
       renderArchitectureMd({
@@ -186,7 +202,7 @@ export function main(argv: string[]): number {
   if (unusedImports.length > 0) {
     console.error(`  ${unusedImports.length} unused import(s) — see ARCHITECTURE.md`);
   }
-  console.error(`Wrote 5 files to ${outDir}`);
+  console.error(`Wrote 6 files to ${outDir}`);
 
   const rulesPath = path.join(targetDir, "dagward.yml");
   if (!fs.existsSync(rulesPath)) {
@@ -231,6 +247,36 @@ function runCheck(targetDir: string, projectOverride: string | undefined): numbe
     }
     throw error;
   }
+}
+
+// Graph queries answered from dagward-out alone: no tsconfig, no compiler, no
+// source reads — one call instead of an agent reconstructing the graph.
+function runQuery(command: string, outDir: string, fileId: string | undefined): number {
+  if (!fileId) {
+    console.error(`Usage: dagward ${command} <file> [--out <dir>]`);
+    return 2;
+  }
+  const graphFile = path.join(outDir, "graph.files.json");
+  let files: Graph;
+  try {
+    files = JSON.parse(fs.readFileSync(graphFile, "utf8")) as Graph;
+  } catch {
+    console.error(`Cannot read ${graphFile}. Run \`dagward init\` first.`);
+    return 2;
+  }
+  if (command === "affects") {
+    const dependents = affects(files, fileId);
+    console.log(JSON.stringify({ file: fileId, affects: dependents }, null, 2));
+    console.error(`${dependents.length} file(s) depend on ${fileId}`);
+    return 0;
+  }
+  const node = queryNode(files, fileId);
+  if (!node) {
+    console.error(`No node "${fileId}" in ${graphFile}`);
+    return 2;
+  }
+  console.log(JSON.stringify(node, null, 2));
+  return 0;
 }
 
 // Node annotations are authored externally (AI or human) but live on the
