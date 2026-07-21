@@ -139,6 +139,40 @@ real).
    the work dagward is built for. A fix/refactor-heavy suite would show a much
    stronger agentic number.
 
+## Final table — savings by task shape
+
+Both benchmarks, one axis: **the more a task is about finding/understanding
+existing code (vs. writing new code), the more dagward saves.** Savings are
+positive = dagward cheaper / faster; negative = dagward costs more.
+
+| Task shape | Token savings | Time savings | Evidence |
+|---|--:|--:|---|
+| **Structural query** — "what is the architecture / cone" (deterministic, no agent) | **95–99.5%** (17–200×) | sub-second | Layer-2 |
+| **Change-impact** — "what breaks if I change X" | **≈85%** in / 97% out | **≈95%** | hihome |
+| **Architecture comprehension** — "how is this laid out" | **≈52%** in / 64% out | **≈63%** | hihome |
+| **Bug fix** — locate + comprehend + small edit | **≈16%** | **≈28%** | DeepSWE happy-dom (N=1) |
+| **Feature implementation** — write new code at a known seam | **≈0%** (neutral) | **≈−12%** (slower) | DeepSWE N=12 |
+| **Trivial single-edge check** — "does A already import B" | **−67%** (over-answers) | ≈0% | hihome diff-review |
+
+Reading the gradient:
+- **Top rows (analytical / locate-bound): dagward's home turf** — the graph has
+  *already answered* the question, so a lookup replaces a hand-trace. Savings are
+  large on every axis.
+- **Bug fix: the strong agentic case** — the agent must locate across the repo;
+  dagward's `affects`/`annotate` cut the search, and contracts replace reading
+  dependency source (−16% tokens, −27% tool-calls, and a tighter fix).
+- **Feature implementation: neutral** — writing new code dominates the budget and
+  isn't compressible; the small find/understand slice is often pre-named by the
+  prompt. Time can go slightly negative from the `gq`/`init`/cycle-gate overhead.
+- **Trivial single-edge check: a product gap, not a graph limit** — dagward lacks
+  a one-line `check-edge <from> <to>`, so the agent uses `affects` on a hub and
+  over-answers. Fix is a new primitive (see hihome *Next*).
+
+**One-line rule of thumb:** dagward's savings ≈ *(how much of the task is
+finding/understanding existing code)*. Analytical and bug-fix work: big win.
+Greenfield feature-add: break-even. And the deterministic context-compression
+(17–200×) is always there regardless of the agent.
+
 ## Reproduce
 
 Harness, scorer, query tool, authored annotations, and detailed write-ups:
