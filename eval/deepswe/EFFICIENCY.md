@@ -4,25 +4,57 @@ The primary question: does dagward reduce an agent's token usage and running
 time? Measured on 3 TS tasks × 3 arms (control, v1 doc, v2 graph-queried),
 Claude as the agent. Numbers are the agent's own reported usage per run.
 
-## Control vs v2 (dagward's graph queried in the loop)
+## Control vs v2 (graph queried) vs v3 (graph + annotations)
 
-tokens (k) / tool calls / wall-clock (min):
+Agent tokens (k) — the metric of interest:
 
-| Task | Control (no dagward) | v2 (graph.files.json queried) | Tokens Δ | Time Δ |
-|---|---|---|---|---|
-| ts-pattern | 75.3k / 27 / 7.3 | 70.4k / 20 / 5.6 | −6.5% | −22% |
-| superjson | 88.8k / 27 / 9.6 | 83.4k / 35 / 9.3 | −6.1% | −2.4% |
-| awilix (complex) | 101.3k / 45 / 10.6 | 106.8k / 40 / 11.6 | **+5.4%** | **+9.5%** |
-| **Total** | **265k / 99 / 27.4** | **261k / 95 / 26.6** | **−1.8%** | **−3.1%** |
+| Task | Control | v2 (graph) | v3 (graph + annotations) |
+|---|---|---|---|
+| ts-pattern | 75.3k | 70.4k (−6.5%) | **56.6k (−24.9%)** |
+| superjson | 88.8k | 83.4k (−6.1%) | 100.3k (**+12.9%**) |
+| awilix (complex) | 101.3k | 106.8k (+5.4%) | 117.6k (**+16.0%**) |
+| **Total** | **265k** | **261k (−1.8%)** | **274k (+3.4%)** |
 
-Net ≈ token-neutral: dagward saves on the two small tasks and *costs* on the
-complex one, because on a complex, hub-tangled task the graph surfaces more
-constraints to reason about while the savings (knowing the cone without reading
-it) stay a small fixed slice. See "Why complex tasks don't save" below.
+Wall-clock total: control 27.4m, v2 26.6m (−3.1%), v3 30.5m (**+11.2%**).
 
-(A third arm — dagward consumed as a static ARCHITECTURE.md doc rather than
-queried — ran +8.9% tokens; dropped here as it only showed that dumping a doc is
-strictly worse than querying.)
+### The honest result
+
+**Neither arm delivers reliable token savings, and annotations (v3) made it
+slightly *worse* overall (+3.4%).** The per-task numbers swing wildly by sign:
+- v3 ts-pattern **−25%** — the agent genuinely trusted 13 contracts and skipped
+  reading their source (the annotation thesis working).
+- v3 superjson **+13%**, v3 awilix **+16%** — those agents read dependency source
+  anyway ("not answerable from the contract") and did more thorough design +
+  verification. Given *cheap* context, they did *more* work, not less.
+
+The annotation lever did **not** flip the complex task (awilix): v3 was the most
+expensive awilix run of all.
+
+### Why the agentic measurement can't show dagward's token win
+
+1. **The savings are a small slice.** A full solve is dominated by design +
+   implementation + verification. Comprehending un-edited dependencies (the part
+   annotations compress) is a minor fraction; edited files are read in full
+   regardless.
+2. **Agents don't reliably take the saving.** "To be safe" they read source even
+   when a contract exists (superjson read `plainer.ts`; awilix reasoned deeply
+   about PROXY-mode runtime behavior a 123-token contract can't convey).
+3. **Cheap context induces more work.** With contracts in hand the agents ran
+   larger smoke suites and deeper design pivots — costlier, not cheaper.
+4. **Variance ≫ effect.** N=1 per cell; per-agent thoroughness swings ±15%,
+   larger than any dagward effect.
+
+### What IS real (LAYER2.md)
+
+As a **deterministic property of the artifacts**, dagward cuts context cost
+massively — 17-200× for structure, 5-13× for cone comprehension. That saving is
+guaranteed; it is the agent that fails to realize it in a free-form solve. To
+capture it you must *constrain* the agent to trust contracts instead of reading
+source (a harness/prompt-discipline problem). v3 ts-pattern proves it's
+achievable (−25%); v3 superjson/awilix prove it isn't automatic.
+
+(A doc-only arm — ARCHITECTURE.md, no queries — ran +8.9% tokens; strictly worse
+than querying, dropped from the table.)
 
 ## Why complex tasks don't save
 
