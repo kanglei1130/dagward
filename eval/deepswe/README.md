@@ -116,4 +116,5 @@ Scripts: `run-verifier.sh` (core native verifier), `verify-task.sh`
 - [x] structural scorer built + validated (`score.mjs`)
 - [x] native Docker-free verifier built + validated on golden solution
 - [x] control-arm agents dispatched (Claude session as agent)
-- [ ] per-task verifier + structural/efficiency deltas (pending agent solves)
+- [x] control-arm results: 2/3 solved, 1 near-miss, 0 cycles introduced (see RESULTS.md)
+- [ ] treatment arm (with dagward) — context injection + check-gate
