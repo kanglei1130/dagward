@@ -54,7 +54,9 @@
       "correct": true,
       "answer": "full page reusing useAgentLoyalty store, ranked client-side; matched conventions",
       "input": 123602,
-      "output": 1197
+      "output": 2659,
+      "output_reported": 1197,
+      "output_note": "final message undercounted by harness; estimated from emitted chars/3.7"
     },
     {
       "task": "7-add-db-field",
@@ -112,10 +114,12 @@
       "cond": "dagward",
       "correct": true,
       "input": 96186,
-      "output": 1321,
+      "output": 1840,
       "ms": 34823,
       "calls": 7,
-      "via": "index + dagward query"
+      "via": "index + dagward query",
+      "output_reported": 1321,
+      "output_note": "final message undercounted by harness; estimated from emitted chars/3.7"
     },
     {
       "task": "7-add-db-field",

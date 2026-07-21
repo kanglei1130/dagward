@@ -32,10 +32,15 @@ faster. All 12 runs correct.
 | Architecture comprehension | 119,509 / 5,831 | 57,269 / 2,095 | **48% / 36%** | 91s | 34s | **63%** |
 | Change-impact analysis | 205,790 / 11,172 | 30,958 / 317 | **15% / 3%** | 156s | 8s | **95%** |
 | Diff architecture review | 31,355 / 970 | 52,394 / 708 | 167% / 73% | 15s | 16s | −6% |
-| Add an agent-ranks page | 123,602 / 1,197 | 110,306 / 4,472 | 89% / 374% | 60s | 65s | −7% |
-| Add an API route | 121,144 / 2,337 | 96,186 / 1,321 | **79% / 57%** | 45s | 35s | **23%** |
+| Add an agent-ranks page | 123,602 / 2,659* | 110,306 / 4,472 | 89% / 168% | 60s | 65s | −7% |
+| Add an API route | 121,144 / 2,337 | 96,186 / 1,840* | **79% / 79%** | 45s | 35s | **23%** |
 | Add a DB schema field | 166,363 / 5,004 | 184,306 / 4,227 | 111% / 84% | 80s | 61s | **24%** |
-| **Overall** | **767,763 / 26,511** | **531,419 / 13,140** | **69% / 50%** | 448s | 217s | **51%** |
+| **Overall** | **767,763 / 27,973** | **531,419 / 13,659** | **69% / 49%** | 448s | 217s | **51%** |
+
+\* For two runs the harness logged a streaming-start snapshot instead of the final usage record,
+scoring a whole final answer at 3–6 output tokens. Those two are estimated from the emitted text
+(chars ÷ 3.7); every other cell is a recorded count. `live-results.json` keeps the raw
+`output_reported` alongside.
 
 The `w/ dagward` column uses the optimized lookup path: `dagward query <file>` / `dagward affects
 <file>` and a lean grep-able `annotations.jsonl`. Before those optimizations the same tasks measured
@@ -51,8 +56,12 @@ and a net loss on code-generation tasks.**
   over 205 k input tokens. Comprehension: **48% input, 36% output, 63% faster** (ARCHITECTURE.md states
   "0 cycles"; the baseline spent 90 s reasoning through an apparent `db↔lib` cycle). These are
   questions dagward has *already answered*.
-- **Trivial checks are a wash.** Diff review is a one-edge question: a grep found the import in 15 s,
-  and dagward matches it (16 s) but at 167% of the input. Local questions don't need a graph.
+- **Trivial checks lose — because the query over-answers.** Diff review asks one bit: *does
+  `geocoding` already reach `db/prisma`?* dagward has no single-edge query, so the agent used the
+  nearest primitive, `affects src/db/prisma.ts` — and `db/prisma.ts` is the repo's biggest hub, so it
+  returned **136 files / 6,101 bytes** into context where the baseline's grep of one import line cost
+  **101 bytes**. Not a graph-vs-grep loss; a missing-primitive loss. The fix is a
+  `dagward check-edge <from> <to>` that answers CYCLE/CLEAN in one line (see *Next*).
 - **Generative tasks now roughly break even, with a latency win on the well-targeted ones.** The API
   route came out ahead (**79% input, 23% faster**) and the DB field saved 24% of the time; the page task
   sits at 89% input / −7% time. Writing code still needs the real pattern, so contracts supplement
@@ -118,6 +127,24 @@ call**, and the DB-field task ballooned to 280 k input. Slimming the line to `pa
 (133 chars) cut the index 303 KB → 53 KB and the same grep to **1,466 tokens (15× cheaper)**, which
 recovered the page task (223 k → 110 k input) and the DB task (280 k → 184 k). Detail now comes from
 `dagward query` one file at a time — search stays lean, depth is on demand.
+
+## Why the two "dagward costs more" cells look the way they do
+
+- **Diff review, 167% input** — the agent ran `affects src/db/prisma.ts` (136 dependents, 6,101 bytes)
+  to decide a single-edge question. dagward lacks a "would this edge cycle?" primitive, so the closest
+  available query over-answers by ~60×. Product gap, not a graph limitation.
+- **Agent-ranks page, 168% output** — *not* caused by annotations: annotations are **input**, and never
+  appear in output. Two things drive it. (1) A measurement artifact: the baseline's final answer
+  (5,420 chars) was logged as 3 output tokens, which made the ratio read 374% before correction.
+  (2) A real difference: the dagward agent emitted a longer answer (7,297 vs 5,420 chars) — a richer
+  page (debounced search box, pagination notes) plus more design caveats. Better context led it to
+  write *more*, not annotations leaking into the output.
+
+## Next (from these results)
+
+- `dagward check-edge <from> <to>` — one-line CYCLE/CLEAN verdict; removes the diff-review regression
+  and is the natural hook/MCP primitive for "is this import allowed?".
+- Cap or paginate `affects` output for hub files (136 paths is a lot of context for one question).
 
 ## Reproduce
 
