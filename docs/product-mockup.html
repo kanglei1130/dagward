@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dagward — Product Mockup</title>
+<style>
+  :root {
+    --bg: #1b1d23;
+    --bg-2: #22252d;
+    --bg-3: #2a2e38;
+    --line: #343a46;
+    --fg: #d7dce5;
+    --fg-dim: #8b93a3;
+    --fg-faint: #616a7a;
+    --accent: #6ea8fe;
+    --green: #57c98a;
+    --amber: #e0b34d;
+    --red: #e56c184b;
+    --red-solid: #ec6b5e;
+    --purple: #b48ce8;
+    --kw: #c98ae0;
+    --str: #8fce6f;
+    --fn: #6ea8fe;
+    --type: #57c1c9;
+    --comment: #616a7a;
+    --mono: "SF Mono", "JetBrains Mono", "Fira Code", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg); font-family: var(--sans);
+    font-size: 13px; line-height: 1.5; overflow: hidden;
+  }
+  .app { display: grid; grid-template-rows: 38px 1fr 210px; height: 100vh; }
+
+  /* Title bar */
+  .titlebar {
+    display: flex; align-items: center; gap: 14px; padding: 0 14px;
+    background: var(--bg-2); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: .2px; }
+  .brand .logo { width: 18px; height: 18px; border-radius: 5px;
+    background: linear-gradient(135deg, var(--accent), var(--purple)); display: inline-block; }
+  .brand small { color: var(--fg-faint); font-weight: 400; }
+  .crumb { color: var(--fg-dim); font-family: var(--mono); font-size: 12px; }
+  .crumb b { color: var(--fg); font-weight: 500; }
+  .titlebar .spacer { flex: 1; }
+  .pill { font-size: 11px; padding: 3px 9px; border-radius: 20px; border: 1px solid var(--line);
+    color: var(--fg-dim); display: inline-flex; align-items: center; gap: 5px; }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .pill.warn .dot { background: var(--amber); }
+
+  /* Main 3-column area */
+  .main { display: grid; grid-template-columns: 210px 1fr 320px; min-height: 0; }
+  .pane { min-height: 0; overflow: auto; }
+  .tree { background: var(--bg-2); border-right: 1px solid var(--line); padding: 10px 0; }
+  .tree h4 { margin: 4px 14px 8px; font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--fg-faint); font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 7px; padding: 3px 14px; font-size: 12.5px;
+    color: var(--fg-dim); cursor: default; }
+  .row:hover { background: var(--bg-3); }
+  .row.active { background: #30364413; color: var(--fg); background: var(--bg-3); }
+  .row .name { flex: 1; font-family: var(--mono); font-size: 12px; }
+  .row.child { padding-left: 30px; }
+  .badge { font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 600;
+    letter-spacing: .3px; text-transform: uppercase; }
+  .b-front { background: #6ea8fe22; color: #9dc0fe; }
+  .b-back  { background: #b48ce822; color: #cbaef0; }
+  .b-shared{ background: #57c98a22; color: #86dcac; }
+  .b-tool  { background: #e0b34d22; color: #ecc978; }
+  .dotmark { width: 6px; height: 6px; border-radius: 50%; }
+  .d-ok { background: var(--green); }
+  .d-stale { background: var(--amber); }
+  .d-none { background: var(--fg-faint); opacity: .5; }
+
+  /* Editor */
+  .editor { background: var(--bg); position: relative; }
+  .tabs { display: flex; background: var(--bg-2); border-bottom: 1px solid var(--line); }
+  .tab { padding: 8px 16px; font-size: 12px; font-family: var(--mono); color: var(--fg-dim);
+    border-right: 1px solid var(--line); }
+  .tab.active { background: var(--bg); color: var(--fg); border-top: 2px solid var(--accent); padding-top: 6px; }
+  .code { font-family: var(--mono); font-size: 12.5px; line-height: 1.7; padding: 10px 0; }
+  .ln { display: grid; grid-template-columns: 42px 1fr; }
+  .ln .num { color: var(--fg-faint); text-align: right; padding-right: 14px; user-select: none; opacity: .7; }
+  .ln .txt { white-space: pre; }
+  .ln:hover { background: #ffffff05; }
+  .kw { color: var(--kw); } .str { color: var(--str); } .fn { color: var(--fn); }
+  .type { color: var(--type); } .cm { color: var(--comment); font-style: italic; }
+  .squiggle { text-decoration: underline wavy var(--red-solid); text-underline-offset: 3px; }
+  .codelens { display: grid; grid-template-columns: 42px 1fr; color: var(--fg-faint);
+    font-size: 11px; font-style: italic; }
+  .codelens .txt { display: flex; gap: 14px; align-items: center; }
+  .codelens a { color: var(--accent); font-style: normal; text-decoration: none; cursor: pointer; }
+  .codelens .chip { font-style: normal; }
+  .chip { font-size: 10px; padding: 1px 7px; border-radius: 20px; border: 1px solid var(--line);
+    color: var(--fg-dim); }
+  .chip.ok { border-color: #57c98a55; color: #86dcac; }
+  .chip.stale { border-color: #e0b34d66; color: #ecc978; }
+  .gutter-warn { grid-column: 1; color: var(--amber); text-align: right; padding-right: 14px; }
+
+  /* Contract panel */
+  .contract { background: var(--bg-2); border-left: 1px solid var(--line); }
+  .cpanel-head { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .cpanel-head .k { font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--fg-faint); font-weight: 600; }
+  .cpanel-head .node { font-family: var(--mono); font-size: 13px; color: var(--fg); margin-top: 4px;
+    display: flex; align-items: center; gap: 8px; }
+  .stale-banner { margin: 12px 16px; padding: 9px 11px; border-radius: 7px;
+    background: #e0b34d14; border: 1px solid #e0b34d40; color: #ecc978; font-size: 11.5px;
+    display: flex; gap: 8px; align-items: flex-start; }
+  .field { padding: 9px 16px; }
+  .field .lbl { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--fg-faint); font-weight: 600; margin-bottom: 5px; display: flex; justify-content: space-between; }
+  .field .val { background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 9px; font-size: 12px; color: var(--fg); min-height: 20px; }
+  .field .val.shouldnot { border-color: #ec6b5e40; }
+  .field .val.muted { color: var(--fg-dim); font-family: var(--mono); font-size: 11.5px; }
+  .chiprow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cbtns { display: flex; gap: 8px; padding: 12px 16px 16px; }
+  .btn { flex: 1; text-align: center; padding: 8px; border-radius: 7px; font-size: 12px;
+    border: 1px solid var(--line); color: var(--fg); background: var(--bg-3); cursor: pointer; }
+  .btn.primary { background: var(--accent); color: #0d1017; border-color: var(--accent); font-weight: 600; }
+  .btn.ai { background: linear-gradient(135deg, #6ea8fe22, #b48ce822); border-color: #6ea8fe55; color: #cdd9f5; }
+
+  /* Bottom dock */
+  .dock { background: var(--bg-2); border-top: 1px solid var(--line); display: grid;
+    grid-template-rows: 34px 1fr; min-height: 0; }
+  .dock-tabs { display: flex; gap: 2px; padding: 0 8px; align-items: stretch; border-bottom: 1px solid var(--line); }
+  .dtab { padding: 8px 14px; font-size: 11.5px; color: var(--fg-dim); border-bottom: 2px solid transparent;
+    display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .dtab.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .count { font-size: 10px; background: var(--bg-3); border-radius: 10px; padding: 0 6px; color: var(--fg-dim); }
+  .count.bad { background: #ec6b5e22; color: #f0968c; }
+  .dock-body { overflow: auto; display: grid; grid-template-columns: 1.4fr 1fr; }
+  .panel { padding: 10px 14px; min-height: 0; overflow: auto; }
+  .panel + .panel { border-left: 1px solid var(--line); }
+  .panel h5 { margin: 0 0 8px; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--fg-faint); font-weight: 600; }
+  .prob { display: flex; gap: 9px; padding: 6px 0; align-items: flex-start; font-size: 12px;
+    border-bottom: 1px solid #ffffff08; }
+  .prob .ic { width: 15px; text-align: center; flex: none; }
+  .prob .ic.err { color: var(--red-solid); } .prob .ic.warn { color: var(--amber); }
+  .prob .msg b { color: var(--fg); font-weight: 500; }
+  .prob .msg .loc { color: var(--fg-faint); font-family: var(--mono); font-size: 11px; }
+  .prob .msg .why { color: var(--fg-dim); font-size: 11.5px; }
+
+  .ctxbox { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); }
+  .ctxbox .tok { color: var(--fg-faint); }
+  .ctxbox .hl { color: var(--fg); }
+  .ctxbox .grn { color: var(--green); }
+  .validate { margin-top: 10px; padding: 9px 11px; border-radius: 7px; font-size: 12px;
+    display: flex; gap: 8px; align-items: center; }
+  .validate.pass { background: #57c98a14; border: 1px solid #57c98a40; color: #86dcac; }
+  .validate.fail { background: #ec6b5e14; border: 1px solid #ec6b5e40; color: #f0968c; }
+
+  /* mini graph */
+  .graph-legend { display: flex; gap: 14px; font-size: 10.5px; color: var(--fg-faint); margin-top: 8px; }
+  .graph-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .lg-line { width: 16px; height: 0; border-top: 2px solid var(--fg-faint); }
+  .lg-line.cyc { border-top-color: var(--red-solid); }
+  .lg-line.type { border-top: 2px dashed var(--fg-faint); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="brand"><span class="logo"></span> dagward <small>· architecture contracts</small></div>
+    <div class="crumb">src / analyzers / <b>fileGraph.ts</b></div>
+    <div class="spacer"></div>
+    <span class="pill warn"><span class="dot"></span> 1 violation · 1 stale contract</span>
+    <span class="pill"><span class="dot"></span> 0 cycles</span>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- File tree -->
+    <nav class="pane tree">
+      <h4>Explorer · src</h4>
+      <div class="row"><span>▾</span><span class="name">cli.ts</span><span class="dotmark d-ok"></span><span class="badge b-tool">tool</span></div>
+      <div class="row"><span>▾</span><span class="name">viz.ts</span><span class="dotmark d-ok"></span><span class="badge b-front">front</span></div>
+      <div class="row"><span>▾</span><span class="name">report.ts</span><span class="dotmark d-ok"></span><span class="badge b-shared">shared</span></div>
+      <div class="row active"><span>▾</span><span class="name">fileGraph.ts</span><span class="dotmark d-stale"></span><span class="badge b-shared">shared</span></div>
+      <div class="row"><span>▾</span><span class="name">folderGraph.ts</span><span class="dotmark d-ok"></span><span class="badge b-shared">shared</span></div>
+      <div class="row"><span>▾</span><span class="name">functionGraph.ts</span><span class="dotmark d-none"></span><span class="badge b-shared">shared</span></div>
+      <div class="row"><span>▾</span><span class="name">project.ts</span><span class="dotmark d-ok"></span><span class="badge b-back">back</span></div>
+      <div class="row"><span>▾</span><span class="name">graph.ts</span><span class="dotmark d-ok"></span><span class="badge b-shared">shared</span></div>
+      <div class="row"><span>▾</span><span class="name">check.ts</span><span class="dotmark d-ok"></span><span class="badge b-shared">shared</span></div>
+
+      <h4 style="margin-top:14px">Dependency map</h4>
+      <div style="padding:0 12px">
+        <svg viewBox="0 0 180 150" width="100%" style="display:block">
+          <!-- edges -->
+          <g stroke="#616a7a" stroke-width="1.4" fill="none">
+            <line x1="90" y1="20" x2="40" y2="60"/>
+            <line x1="90" y1="20" x2="140" y2="60"/>
+            <line x1="40" y1="60" x2="60" y2="105"/>
+            <line x1="140" y1="60" x2="120" y2="105"/>
+            <line x1="60" y1="105" x2="90" y2="140"/>
+            <line x1="120" y1="105" x2="90" y2="140"/>
+          </g>
+          <line x1="40" y1="60" x2="140" y2="60" stroke="#616a7a" stroke-width="1.2" stroke-dasharray="4 3" fill="none"/>
+          <!-- nodes -->
+          <g font-family="var(--mono)" font-size="7" fill="#d7dce5" text-anchor="middle">
+            <circle cx="90" cy="20" r="9" fill="#22252d" stroke="#e0b34d" stroke-width="1.5"/><text x="90" y="22">cli</text>
+            <circle cx="40" cy="60" r="9" fill="#22252d" stroke="#6ea8fe" stroke-width="1.5"/><text x="40" y="62">viz</text>
+            <circle cx="140" cy="60" r="9" fill="#22252d" stroke="#57c98a" stroke-width="1.5"/><text x="140" y="62">rep</text>
+            <circle cx="60" cy="105" r="10" fill="#2a2e38" stroke="#57c98a" stroke-width="2"/><text x="60" y="107">file</text>
+            <circle cx="120" cy="105" r="9" fill="#22252d" stroke="#b48ce8" stroke-width="1.5"/><text x="120" y="107">proj</text>
+            <circle cx="90" cy="140" r="9" fill="#22252d" stroke="#57c98a" stroke-width="1.5"/><text x="90" y="142">graph</text>
+          </g>
+        </svg>
+        <div class="graph-legend">
+          <span><span class="lg-line"></span>import</span>
+          <span><span class="lg-line type"></span>type</span>
+          <span><span class="lg-line cyc"></span>cycle</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Editor -->
+    <section class="pane editor">
+      <div class="tabs">
+        <div class="tab active">fileGraph.ts</div>
+        <div class="tab">report.ts</div>
+      </div>
+      <div class="code">
+        <div class="ln"><span class="num">1</span><span class="txt"><span class="cm">// Import-derived file dependency graph.</span></span></div>
+        <div class="ln"><span class="num">2</span><span class="txt"><span class="kw">import</span> ts <span class="kw">from</span> <span class="str">"typescript"</span>;</span></div>
+        <div class="ln"><span class="gutter-warn">⚠</span><span class="txt"><span class="kw">import</span> { renderVizHtml } <span class="kw">from</span> <span class="str squiggle">"./viz.js"</span>;</span></div>
+        <div class="ln"><span class="num">4</span><span class="txt"></span></div>
+        <div class="codelens"><span class="num"></span><span class="txt"><span class="chip stale">⟳ contract stale</span> <a>Review annotation</a> · <a>Ask AI to update</a></span></div>
+        <div class="ln"><span class="num">5</span><span class="txt"><span class="kw">export function</span> <span class="fn">buildFileGraph</span>(project: <span class="type">Project</span>): { graph: <span class="type">Graph</span> } {</span></div>
+        <div class="ln"><span class="num">6</span><span class="txt">  <span class="kw">const</span> edges = <span class="fn">resolveImports</span>(project);</span></div>
+        <div class="ln"><span class="num">7</span><span class="txt">  <span class="kw">return</span> { graph: <span class="fn">buildGraph</span>(edges) };</span></div>
+        <div class="ln"><span class="num">8</span><span class="txt">}</span></div>
+        <div class="ln"><span class="num">9</span><span class="txt"></span></div>
+        <div class="codelens"><span class="num"></span><span class="txt"><span class="chip ok">✓ contract fresh</span> · side: shared · pure</span></div>
+        <div class="ln"><span class="num">10</span><span class="txt"><span class="kw">function</span> <span class="fn">classifyImport</span>(decl: ts.<span class="type">ImportDeclaration</span>): <span class="type">EdgeKind</span> {</span></div>
+        <div class="ln"><span class="num">11</span><span class="txt">  <span class="cm">// …</span></span></div>
+        <div class="ln"><span class="num">12</span><span class="txt">}</span></div>
+      </div>
+    </section>
+
+    <!-- Contract panel -->
+    <aside class="pane contract">
+      <div class="cpanel-head">
+        <div class="k">Contract</div>
+        <div class="node">src/fileGraph.ts <span class="badge b-shared">shared</span></div>
+      </div>
+
+      <div class="stale-banner">
+        <span>⟳</span>
+        <span><b>Annotation may be stale.</b> The file's imports changed since this contract was written (added <code>./viz.js</code>). Review before an agent trusts it.</span>
+      </div>
+
+      <div class="field">
+        <div class="lbl"><span>Summary</span></div>
+        <div class="val">Builds the import-derived file dependency graph from resolved TypeScript modules.</div>
+      </div>
+      <div class="field">
+        <div class="lbl"><span>Inputs</span> <span class="lbl-r"></span></div>
+        <div class="val muted">Project (compiler program + checker)</div>
+      </div>
+      <div class="field">
+        <div class="lbl"><span>Outputs</span></div>
+        <div class="val muted">Graph { nodes, edges, cycles }</div>
+      </div>
+      <div class="field">
+        <div class="lbl"><span>Should</span></div>
+        <div class="val">Resolve real module edges (paths, index files, conditional exports) only.</div>
+      </div>
+      <div class="field">
+        <div class="lbl"><span style="color:#f0968c">Should not</span></div>
+        <div class="val shouldnot">Import from viz or report — analyzers must not depend on presentation. <b style="color:#f0968c">← violated</b></div>
+      </div>
+      <div class="field">
+        <div class="lbl"><span>Attributes</span></div>
+        <div class="chiprow">
+          <span class="chip">side: shared</span>
+          <span class="chip ok">pure</span>
+        </div>
+      </div>
+
+      <div class="cbtns">
+        <div class="btn ai">✦ AI draft</div>
+        <div class="btn primary">Approve</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Bottom dock -->
+  <div class="dock">
+    <div class="dock-tabs">
+      <div class="dtab active">Problems <span class="count bad">2</span></div>
+      <div class="dtab">AI Context <span class="count">1</span></div>
+      <div class="dtab">Impact · affects <span class="count">3</span></div>
+    </div>
+    <div class="dock-body">
+      <!-- Problems -->
+      <div class="panel">
+        <h5>Enforcement · dagward check</h5>
+        <div class="prob">
+          <span class="ic err">✕</span>
+          <span class="msg"><b>Boundary violation</b> <span class="loc">fileGraph.ts:3</span><br>
+            <span class="why">Edge <code>fileGraph.ts → viz.ts</code> breaks contract <code>shouldNot: import from viz</code> and the module-order rule (analyzers must not depend on viz).</span></span>
+        </div>
+        <div class="prob">
+          <span class="ic warn">⚠</span>
+          <span class="msg"><b>Stale contract</b> <span class="loc">fileGraph.ts</span><br>
+            <span class="why">Source surface changed since the annotation was authored — re-approve or ask AI to update.</span></span>
+        </div>
+      </div>
+
+      <!-- AI context -->
+      <div class="panel">
+        <h5>Context provided to agent · pre-generation</h5>
+        <div class="ctxbox">
+<span class="tok">target</span>  <span class="hl">src/fileGraph.ts</span>
+<span class="tok">contract</span> should / shouldNot / side:shared / pure
+<span class="tok">cone</span>    <span class="hl">graph.ts</span>, <span class="hl">project.ts</span> <span class="tok">(depth 1, trusted)</span>
+<span class="tok">rules</span>   layer order: analyzers → project → graph
+<span class="tok">forbid</span>  → viz.ts, → report.ts, → cli.ts
+<span class="tok">budget</span>  <span class="grn">~740 tokens</span> <span class="tok">(vs ~9k reading the cone)</span>
+        </div>
+        <div class="validate fail">✕ Post-generation check failed: proposed edge → viz.ts is forbidden. Regenerating within contract…</div>
+        <div class="validate pass" style="margin-top:8px">✓ Retry passed check · 0 new cycles · cone size unchanged</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
