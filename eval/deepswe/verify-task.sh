@@ -17,12 +17,20 @@ mkdir -p /tmp/patches
 
 echo "########## $name ##########"
 
-# 1. extract patch (read-only on the agent repo; src only, like the golden)
-if ! git -C "$AGENT_REPO" rev-parse --verify -q solve >/dev/null; then
-  echo "RESULT $name: no 'solve' branch — agent did not commit"; exit 0
+# 1. extract patch (read-only on the agent repo; src only, like the golden).
+# Auto-detect the work commit: prefer `solve` if it has commits past base,
+# else the repo's current HEAD (guards against a detached-HEAD commit).
+REF=""
+if [ "$(git -C "$AGENT_REPO" rev-list --count "$BASE"..solve 2>/dev/null || echo 0)" -gt 0 ]; then
+  REF=solve
+elif [ "$(git -C "$AGENT_REPO" rev-list --count "$BASE"..HEAD 2>/dev/null || echo 0)" -gt 0 ]; then
+  REF=HEAD
 fi
-git -C "$AGENT_REPO" diff --binary "$BASE" solve -- src > "$PATCH"
-echo "patch: $(wc -c < "$PATCH") bytes, files: $(git -C "$AGENT_REPO" diff --name-only "$BASE" solve -- src | tr '\n' ' ')"
+if [ -z "$REF" ]; then
+  echo "RESULT $name: no commits past base — agent did not commit"; exit 0
+fi
+git -C "$AGENT_REPO" diff --binary "$BASE" "$REF" -- src > "$PATCH"
+echo "patch: $(wc -c < "$PATCH") bytes (ref=$REF), files: $(git -C "$AGENT_REPO" diff --name-only "$BASE" "$REF" -- src | tr '\n' ' ')"
 
 # 2. isolated copy
 rm -rf "$VERIFY"; git clone -q --local "$AGENT_REPO" "$VERIFY"
@@ -34,11 +42,13 @@ REWARD=$(cat /logs/verifier/reward.json 2>/dev/null || echo '{}')
 echo "reward: $REWARD"
 
 # 4. dagward structural delta: before=base, after=base+model.patch (src only,
-#    NOT the held-out tests)
+#    NOT the held-out tests). Clean untracked leftovers (test files, new src
+#    from the verifier's apply) so the patch applies to a pristine base.
 git -C "$VERIFY" checkout -f -q "$BASE"
+git -C "$VERIFY" clean -fdq -e node_modules
 node "$DAG" init "$VERIFY" >/dev/null 2>&1
 cp "$VERIFY/dagward-out/graph.files.json" "/tmp/verify/$name.before.json"
-git -C "$VERIFY" apply --whitespace=nowarn "$PATCH" 2>/dev/null || echo "  (warn: patch reapply for dagward had fuzz)"
+git -C "$VERIFY" apply --whitespace=nowarn "$PATCH" || echo "  (warn: patch reapply for dagward failed)"
 node "$DAG" init "$VERIFY" >/dev/null 2>&1
 cp "$VERIFY/dagward-out/graph.files.json" "/tmp/verify/$name.after.json"
 echo "--- dagward structural delta (before -> after) ---"
