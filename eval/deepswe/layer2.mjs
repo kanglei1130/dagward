@@ -33,16 +33,20 @@ const srcTokens = (id) => { try { return tok(fs.readFileSync(path.join(repo, id)
 const archTokens = tok(fs.readFileSync(path.join(repo, "dagward-out/ARCHITECTURE.md"), "utf8"));
 const allSrcTokens = graph.nodes.reduce((a, n) => a + srcTokens(n.id), 0);
 
-// Q2 — per-file cone (averaged over all files)
-let dagSum = 0, srcSum = 0, n = 0;
+// Q2/Q3 — per-file cone (averaged over all files)
+const ANNOTATION_TOKENS = 126; // measured ~contract size per file (README)
+let dagSum = 0, srcSum = 0, annSum = 0, n = 0;
 for (const node of graph.nodes) {
   const cone = coneOf(node.id);
-  // dagward answer = the gq cone output (a JSON id list + size) the agent reads
+  // Q2 dagward answer = the gq cone output (a JSON id list + size): WHICH files,
+  // but not WHAT they do
   const dag = tok(JSON.stringify({ file: node.id, coneSize: cone.length, cone }, null, 2));
-  // source answer = read the source of every file in the cone (what you'd open
-  // to learn the same dependency structure without the graph)
+  // Q2 source answer = read the source of every file in the cone
   const src = cone.reduce((a, id) => a + srcTokens(id), 0);
-  dagSum += dag; srcSum += src; n++;
+  // Q3 annotation projection = read a ~126-token contract per cone file: enough
+  // to COMPREHEND each dependency (what it does) without reading its source
+  const ann = cone.length * ANNOTATION_TOKENS;
+  dagSum += dag; srcSum += src; annSum += ann; n++;
 }
 
 const pct = (a, b) => (b ? `${(100 * a / b).toFixed(1)}%` : "n/a");
@@ -52,7 +56,12 @@ console.log(JSON.stringify({
   Q1_architecture: { dagward_tokens: archTokens, source_tokens: allSrcTokens,
     dagward_is: pct(archTokens, allSrcTokens) + " of reading all source",
     savings_x: +(allSrcTokens / archTokens).toFixed(1) },
-  Q2_cone_avg_per_file: { dagward_tokens: Math.round(dagSum / n), source_tokens: Math.round(srcSum / n),
-    dagward_is: pct(dagSum, srcSum) + " of reading the cone",
-    savings_x: +(srcSum / dagSum).toFixed(1) },
+  // Q2: know WHICH files are in the cone (structure only)
+  Q2_cone_ids_avg: { dagward_tokens: Math.round(dagSum / n), source_tokens: Math.round(srcSum / n),
+    dagward_is: pct(dagSum, srcSum) + " of reading the cone", savings_x: +(srcSum / dagSum).toFixed(1) },
+  // Q3: COMPREHEND every cone dependency (what each does) — annotations vs source.
+  // This is the piece that matters for complex tasks: you must understand hubs,
+  // not just know they exist.
+  Q3_cone_comprehension_avg: { annotation_tokens: Math.round(annSum / n), source_tokens: Math.round(srcSum / n),
+    annotations_are: pct(annSum, srcSum) + " of reading the cone source", savings_x: +(srcSum / annSum).toFixed(1) },
 }, null, 2));

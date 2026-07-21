@@ -18,6 +18,25 @@ implementation effort that dominated the full-solve numbers in EFFICIENCY.md.
 | superjson | 12 | 492 / 8,183 | **17×** (6.0%) | 53 / 3,709 | **70×** (1.4%) |
 | awilix | 28 | 807 / 36,430 | **45×** (2.2%) | 59 / 8,592 | **146×** (0.7%) |
 
+## Annotation projection — the lever for complex tasks
+
+Q2 gives the cone as a list of ids (WHICH files) but not WHAT they do — so on a
+complex task the agent still reads hub *source* to comprehend it. Per-file
+annotations (~126-token contracts) close that gap: comprehend each dependency
+from its contract instead of its source.
+
+| Repo | Comprehend cone via annotations | via source | Savings |
+|---|---|---|---|
+| ts-pattern | 1,050 tok | 16,567 | **15.8×** (6.3%) |
+| superjson | 725 tok | 3,709 | **5.1×** (19.5%) |
+| awilix (complex) | 761 tok | 8,592 | **11.3×** (8.9%) |
+
+This is the piece the v2 agent lacked: it got the cone *structure* cheaply, then
+paid full source price to *understand* the hubs. Annotations would cut that
+comprehension cost ~5–16×, and it is largest exactly where v2 lost — the complex,
+hub-heavy repo (awilix, 11×). Precondition: the annotations must exist (a one-time
+authoring pass) and be trusted instead of re-reading source (staleness detection).
+
 ## Reading
 
 - **dagward's token benefit is real and large — 17–45× for architecture, 70–200×

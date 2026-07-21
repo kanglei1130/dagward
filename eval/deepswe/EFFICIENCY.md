@@ -4,25 +4,48 @@ The primary question: does dagward reduce an agent's token usage and running
 time? Measured on 3 TS tasks × 3 arms (control, v1 doc, v2 graph-queried),
 Claude as the agent. Numbers are the agent's own reported usage per run.
 
-## Per task — tokens (k) / tool calls / wall-clock (min)
+## Control vs v2 (dagward's graph queried in the loop)
 
-| Task | Control (no dagward) | v1 (ARCHITECTURE.md + gate) | v2 (graph.files.json queried) |
-|---|---|---|---|
-| ts-pattern | 75.3k / 27 / 7.3 | 74.8k / 25 / 7.0 | 70.4k / 20 / 5.6 |
-| superjson | 88.8k / 27 / 9.6 | 98.6k / 31 / 10.9 | 83.4k / 35 / 9.3 |
-| awilix | 101.3k / 45 / 10.6 | 115.5k / 53 / 13.8 | 106.8k / 40 / 11.6 |
-| **Total** | **265k / 99 / 27.4** | **289k / 109 / 31.7** | **261k / 95 / 26.6** |
+tokens (k) / tool calls / wall-clock (min):
 
-## Deltas vs control
+| Task | Control (no dagward) | v2 (graph.files.json queried) | Tokens Δ | Time Δ |
+|---|---|---|---|---|
+| ts-pattern | 75.3k / 27 / 7.3 | 70.4k / 20 / 5.6 | −6.5% | −22% |
+| superjson | 88.8k / 27 / 9.6 | 83.4k / 35 / 9.3 | −6.1% | −2.4% |
+| awilix (complex) | 101.3k / 45 / 10.6 | 106.8k / 40 / 11.6 | **+5.4%** | **+9.5%** |
+| **Total** | **265k / 99 / 27.4** | **261k / 95 / 26.6** | **−1.8%** | **−3.1%** |
 
-| Arm | Tokens | Wall-clock | Tool calls |
-|---|---|---|---|
-| v1 (doc) | **+8.9%** | **+15.5%** | +10% |
-| v2 (queried) | **−1.8%** | **−3.1%** | −4% |
+Net ≈ token-neutral: dagward saves on the two small tasks and *costs* on the
+complex one, because on a complex, hub-tangled task the graph surfaces more
+constraints to reason about while the savings (knowing the cone without reading
+it) stay a small fixed slice. See "Why complex tasks don't save" below.
 
-v2 per task: ts-pattern −6.5% tok / −22% time; superjson −6.1% / −2.4%;
-awilix **+5.4% / +9.5%** (the complex hub-heavy task — graph-reasoning overhead
-exceeded navigation savings).
+(A third arm — dagward consumed as a static ARCHITECTURE.md doc rather than
+queried — ran +8.9% tokens; dropped here as it only showed that dumping a doc is
+strictly worse than querying.)
+
+## Why complex tasks don't save
+
+dagward compresses the *cost of learning the structure* (which files exist, what
+imports what — see LAYER2.md, 17-200x). It does NOT compress:
+- **Writing the implementation** — fixed, dagward-independent, and it grows with
+  task complexity (awilix's async engine is ~280 lines vs ts-pattern's leaf).
+- **Understanding what each dependency DOES** — the graph gives the cone as a
+  list of ids, but to safely edit around a hub the agent still reads that hub's
+  *source*. The id list is cheap; the comprehension is not.
+- **Reasoning within a tangled structure** — awilix's 3 edit targets are a
+  mutually-recursive 7-node SCC. The graph honestly reports "there is no clean
+  leaf here," and the agent then spends tokens reasoning how to minimize coupling
+  (import-type tricks, joining vs creating a cycle). The graph adds constraints
+  to think about without handing over a cheaper path.
+
+So on a complex task: learning-structure (compressed) is a small share; the large
+shares (implementation + comprehending hub source + navigating the tangle) are
+uncompressed, and the extra graph-reasoning can tip the total positive.
+
+The missing piece is **comprehending dependencies without reading their source** —
+which is what per-file annotations provide (depth-1 contract instead of full
+source). See LAYER2.md "annotation projection".
 
 ## Findings
 
