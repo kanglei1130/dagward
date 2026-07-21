@@ -5,6 +5,7 @@ export interface VizInput {
   folders: Graph;
   files: Graph;
   functions: Graph;
+  unified: Graph;
 }
 
 const KINDS: EdgeKind[] = ["value", "type", "dynamic", "call", "reference"];
@@ -15,20 +16,14 @@ function asset(name: string): string {
   return fs.readFileSync(new URL(`./viz-assets/${name}`, import.meta.url), "utf8");
 }
 
-// Compact node/edge format the client consumes: nodes keep id/fc/ln/ann,
-// edges become [fromIdx, toIdx, kindIdx, weight], cycles become index lists.
-function compact(graph: Graph) {
-  const idx = new Map(graph.nodes.map((n, i) => [n.id, i]));
-  return {
-    nodes: graph.nodes.map((n) => ({
-      id: n.id,
-      ...(n.fileCount !== undefined ? { fc: n.fileCount } : {}),
-      ...(n.line !== undefined ? { ln: n.line } : {}),
-      ...(n.annotation ? { ann: n.annotation } : {}),
-    })),
-    edges: graph.edges.map((e) => [idx.get(e.from)!, idx.get(e.to)!, KINDS.indexOf(e.kind), e.weight]),
-    cycles: graph.cycles.map((c) => c.nodes.map((id) => idx.get(id)!)),
-  };
+// The client drills the unified graph: nodes keep id/line/annotation, edges
+// become [fromIdx, toIdx, kindIdx, weight].
+function compactNodes(graph: Graph) {
+  return graph.nodes.map((n) => ({
+    id: n.id,
+    ...(n.line !== undefined ? { ln: n.line } : {}),
+    ...(n.annotation ? { ann: n.annotation } : {}),
+  }));
 }
 
 function escapeHtml(text: string): string {
@@ -36,14 +31,22 @@ function escapeHtml(text: string): string {
 }
 
 export function renderVizHtml(input: VizInput): string {
+  const idx = new Map(input.unified.nodes.map((n, i) => [n.id, i]));
   const data = {
     root: input.files.root,
     kinds: KINDS, // the edge-kind index table app.js decodes edges with
-    levels: {
-      folder: compact(input.folders),
-      file: compact(input.files),
-      function: compact(input.functions),
-    },
+    nodes: compactNodes(input.unified),
+    edges: input.unified.edges.map((e) => [
+      idx.get(e.from)!,
+      idx.get(e.to)!,
+      KINDS.indexOf(e.kind),
+      e.weight,
+    ]),
+    // true cycles at every level, as node-id lists — the client classifies a
+    // displayed aggregate cycle as real vs projection against these
+    trueCycles: [...input.folders.cycles, ...input.files.cycles, ...input.functions.cycles].map(
+      (c) => c.nodes,
+    ),
   };
   // <-escape so a node id containing </script> cannot terminate the data tag
   const json = JSON.stringify(data).replaceAll("<", "\\u003c");

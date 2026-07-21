@@ -31,6 +31,11 @@ export function loadProject(searchDir: string, explicitConfig?: string): Project
   const parsed = ts.getParsedCommandLineOfConfigFile(configPath, undefined, host);
   if (!parsed) throw new ConfigError(`Failed to parse ${configPath}`);
 
+  // dagward never emits — it only analyzes — so turning on unused-symbol
+  // reporting is free here and lets findUnusedImports read the compiler's
+  // own (JSX/type-aware) unused-import diagnostics off this one Program.
+  parsed.options.noUnusedLocals = true;
+
   const program = ts.createProgram({
     rootNames: parsed.fileNames,
     options: parsed.options,

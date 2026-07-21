@@ -12,6 +12,8 @@ import { carryAnnotations, serializeGraph, type Graph } from "./graph.js";
 import { ConfigError, loadProject } from "./project.js";
 import { renderArchitectureMd } from "./report.js";
 import { loadRuleSet } from "./rules.js";
+import { buildUnifiedGraph } from "./unifiedGraph.js";
+import { findUnusedImports } from "./unusedImports.js";
 import { renderVizHtml, type VizInput } from "./viz.js";
 
 const HELP = `dagward — multi-level dependency graphs for TypeScript projects
@@ -148,15 +150,30 @@ export function main(argv: string[]): number {
   );
   const folders = timed("folder graph", () => buildFolderGraph(files));
   const functions = timed("function graph", () => buildFunctionGraph(project));
+  const unusedImports = timed(
+    (u) => `unused imports (${u.length})`,
+    () => findUnusedImports(project),
+  );
 
   timed("write outputs", () => {
     fs.mkdirSync(outDir, { recursive: true });
+    // writeGraph carries preserved annotations onto each graph in place, so
+    // build the unified graph AFTER files/folders are annotated — else its
+    // module nodes copy the un-annotated file nodes.
     writeGraph(path.join(outDir, "graph.folders.json"), folders);
     writeGraph(path.join(outDir, "graph.files.json"), files);
     writeGraph(path.join(outDir, "graph.functions.json"), functions);
+    writeGraph(path.join(outDir, "graph.unified.json"), buildUnifiedGraph(files, functions));
     fs.writeFileSync(
       path.join(outDir, "ARCHITECTURE.md"),
-      renderArchitectureMd({ folders, files, functions, skippedDynamicImports, version: version() }),
+      renderArchitectureMd({
+        folders,
+        files,
+        functions,
+        skippedDynamicImports,
+        unusedImports,
+        version: version(),
+      }),
     );
   });
 
@@ -166,7 +183,10 @@ export function main(argv: string[]): number {
       `  ${graph.level}: ${graph.nodes.length} nodes, ${graph.edges.length} edges, ${cycles}`,
     );
   }
-  console.error(`Wrote 4 files to ${outDir}`);
+  if (unusedImports.length > 0) {
+    console.error(`  ${unusedImports.length} unused import(s) — see ARCHITECTURE.md`);
+  }
+  console.error(`Wrote 5 files to ${outDir}`);
 
   const rulesPath = path.join(targetDir, "dagward.yml");
   if (!fs.existsSync(rulesPath)) {
@@ -193,6 +213,9 @@ function runCheck(targetDir: string, projectOverride: string | undefined): numbe
     }
     for (const ex of unusedExemptions) {
       console.error(`Warning: unused exemption (rule "${ex.rule}", from "${ex.from}", to "${ex.to}")`);
+    }
+    for (const u of findUnusedImports(project)) {
+      console.error(`Warning: unused import at ${u.file}:${u.line} — "${u.specifier}"`);
     }
     console.log(JSON.stringify({ violations }, null, 2));
     console.error(
@@ -224,10 +247,16 @@ function writeGraph(file: string, graph: Graph): void {
 
 function runViz(outDir: string, noOpen: boolean): number {
   const graphs = {} as VizInput;
-  for (const level of ["folders", "files", "functions"] as const) {
-    const file = path.join(outDir, `graph.${level}.json`);
+  const wanted: [keyof VizInput, string][] = [
+    ["folders", "graph.folders.json"],
+    ["files", "graph.files.json"],
+    ["functions", "graph.functions.json"],
+    ["unified", "graph.unified.json"],
+  ];
+  for (const [key, name] of wanted) {
+    const file = path.join(outDir, name);
     try {
-      graphs[level] = JSON.parse(fs.readFileSync(file, "utf8")) as Graph;
+      graphs[key] = JSON.parse(fs.readFileSync(file, "utf8")) as Graph;
     } catch {
       console.error(`Cannot read ${file}. Run \`dagward init\` first.`);
       return 2;

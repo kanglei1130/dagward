@@ -1,6 +1,6 @@
 <header>
   <h1>dagward <span>· architecture map</span></h1>
-  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="shapekey" aria-hidden="true">▪ folder · ● file · ◆ function</div>
   <div class="searchbox">
     <input id="search" type="search" placeholder="Search nodes…" aria-label="Search nodes" autocomplete="off" />
     <span class="hits" id="hits"></span>
@@ -25,9 +25,9 @@
       </div>
       <button id="fit" type="button">Fit view</button>
       <button id="clear" type="button">Clear selection</button>
-      <button id="reset-folders" type="button" hidden>Reset folders</button>
+      <button id="reset-folders" type="button">Reset view</button>
     </div>
-    <div class="hint">dependencies point down · top = no ingress, bottom = no egress · click a node to trace its dependencies · folders: double-click to expand (+N) or collapse</div>
+    <div class="hint">dependencies point down · top = no ingress, bottom = no egress · double-click to drill folder → file → function · click a node to trace its dependencies</div>
     <div class="tooltip" id="tip"></div>
   </div>
   <aside>
@@ -35,7 +35,7 @@
       <h2>Selected node</h2>
       <div class="details" id="details"></div>
     </div>
-    <h2>Level</h2>
+    <h2>Current view</h2>
     <div class="stats" id="stats"></div>
     <h2 id="legend-title">Areas</h2>
     <div class="legend" id="legend-areas"></div>

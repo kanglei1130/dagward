@@ -1,6 +1,6 @@
 export type EdgeKind = "value" | "type" | "dynamic" | "call" | "reference";
 
-export type GraphLevel = "folder" | "file" | "function";
+export type GraphLevel = "folder" | "file" | "function" | "unified";
 
 // AI- or human-written enrichment. Dagward never generates these; it only
 // preserves them across regenerations (see carryAnnotations).

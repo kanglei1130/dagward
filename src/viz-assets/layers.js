@@ -1,51 +1,95 @@
-// Folder drill-down: map each folder to the aggregate that represents it
-// under the current expansion state. Walk the path's proper prefixes
-// root-down; the first non-expanded prefix is the aggregate. An expanded
-// folder still shows itself (it represents its own direct files).
-function displayFolder(id, expanded) {
-  if (id === ".") return ".";
-  const parts = id.split("/");
-  let prefix = "";
-  for (let i = 0; i < parts.length - 1; i++) {
-    prefix = prefix ? prefix + "/" + parts[i] : parts[i];
-    if (!expanded.has(prefix)) return prefix;
+// Containment chain of a node id, root-down, excluding the node itself:
+// folder ancestors, then (for a function `file#fn`) its file. These are the
+// ids that can be expanded/collapsed to reveal or hide the node.
+function containers(id) {
+  const hash = id.indexOf("#");
+  const filePart = hash >= 0 ? id.slice(0, hash) : id;
+  const out = [];
+  const slash = filePart.lastIndexOf("/");
+  if (slash < 0) {
+    out.push("."); // repo-root files sit under the "." folder
+  } else {
+    const parts = filePart.split("/");
+    let prefix = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      prefix = prefix ? prefix + "/" + parts[i] : parts[i];
+      out.push(prefix);
+    }
   }
+  if (hash >= 0) out.push(filePart); // a file contains its functions
+  return out;
+}
+
+// The display node representing `id` under the current expansion: the first
+// container not in `expanded`; if every container is expanded, the node
+// shows itself.
+function displayNode(id, expanded) {
+  const cs = containers(id);
+  for (const c of cs) if (!expanded.has(c)) return c;
   return id;
 }
 
-// Aggregate the compact folder level (nodes [{id, fc, ann}], edges
-// [[f,t,kind,w]]) for an expansion state. Returns the same compact shape
-// plus per-node `hidden` (descendant folders swallowed by the aggregate)
-// and, when rawCycles is given, per-cycle `cycleReal` flags. An aggregate
-// that is itself a real folder node keeps that node's fields.
-function aggregateFolders(rawNodes, rawEdges, expanded, rawCycles) {
+// Initial frontier: high-level folders. Expand the root and any top-level
+// folder that branches into >= 2 sub-folders (e.g. `src`), so the opening
+// view shows the area folders (src/components, src/lib, src/db, …) laid out
+// in the side lanes. Deeper folders, files, and functions stay collapsed
+// until the viewer clicks in. Flat top-level folders (scripts, prisma) stay
+// as one node rather than spilling their files.
+function initialExpanded(rawNodes) {
+  const allFolders = new Set();
+  for (const n of rawNodes) {
+    if (n.id.includes("#")) continue; // module nodes only
+    for (const c of containers(n.id)) allFolders.add(c);
+  }
+  const childFolders = new Map();
+  for (const f of allFolders) {
+    const slash = f.lastIndexOf("/");
+    const parent = slash < 0 ? "." : f.slice(0, slash);
+    if (parent !== f) childFolders.set(parent, (childFolders.get(parent) || 0) + 1);
+  }
+  const expanded = new Set(["."]);
+  for (const f of allFolders) {
+    const topLevel = !f.includes("/"); // depth-1 folder
+    if (f !== "." && topLevel && (childFolders.get(f) || 0) >= 2) expanded.add(f);
+  }
+  return expanded;
+}
+
+// Aggregate the unified graph (nodes [{id, ln?, ann?}], edges [[f,t,k,w]])
+// to the current expansion frontier. Display nodes are folders (synthetic),
+// files (module nodes), or functions. Returns compact nodes carrying `kind`,
+// `hidden` (foldable children count), `fileCount`, plus per-cycle `cycleReal`
+// classified against the true folder/file/function cycles in `trueCycles`.
+function aggregate(rawNodes, rawEdges, expanded, trueCycles) {
   const displayOf = new Array(rawNodes.length);
-  const aggregates = new Map();
+  const groups = new Map();
   rawNodes.forEach((n, i) => {
-    const d = displayFolder(n.id, expanded);
+    const d = displayNode(n.id, expanded);
     displayOf[i] = d;
-    let a = aggregates.get(d);
-    if (!a) aggregates.set(d, (a = { id: d, fc: 0, self: null, sideVotes: {}, hidden: 0 }));
-    a.fc += n.fc || 0;
-    if (n.id === d) a.self = n;
-    else a.hidden++;
+    let g = groups.get(d);
+    if (!g) groups.set(d, (g = { id: d, self: null, hidden: 0, files: new Set(), fns: 0, sideVotes: {} }));
+    if (n.id === d) g.self = n;
+    else g.hidden++;
+    if (n.id.includes("#")) g.fns++;
+    else g.files.add(n.id);
     const side = n.ann && n.ann.side;
-    // an aggregate that is itself a real folder keeps its own side
-    if (side) a.sideVotes[side] = (a.sideVotes[side] || 0) + (n.id === d ? 1000 : 1);
+    if (side) g.sideVotes[side] = (g.sideVotes[side] || 0) + (n.id === d ? 1000 : 1);
   });
 
-  const ids = [...aggregates.keys()].sort();
+  const ids = [...groups.keys()].sort();
   const indexOf = new Map(ids.map((d, i) => [d, i]));
   const nodes = ids.map((d) => {
-    const a = aggregates.get(d);
+    const g = groups.get(d);
     let side = null, best = -1;
-    for (const k in a.sideVotes) {
-      if (a.sideVotes[k] > best) { best = a.sideVotes[k]; side = k; }
-    }
-    let ann = (a.self && a.self.ann) || null;
+    for (const k in g.sideVotes) if (g.sideVotes[k] > best) { best = g.sideVotes[k]; side = k; }
+    const kind = d.includes("#") ? "function" : g.self ? "file" : "folder";
+    let ann = (g.self && g.self.ann) || null;
     if (ann && !ann.side && side) ann = Object.assign({}, ann, { side });
     if (!ann && side) ann = { side };
-    return Object.assign({}, a.self, { id: d, fc: a.fc, ann, hidden: a.hidden });
+    // a folder is always expandable; a collapsed file is expandable iff it
+    // hides functions
+    const hidden = kind === "folder" ? g.files.size : kind === "file" ? g.fns : 0;
+    return Object.assign({}, g.self, { id: d, kind, ann, hidden, fileCount: g.files.size, fnCount: g.fns });
   });
 
   const merged = new Map();
@@ -60,24 +104,21 @@ function aggregateFolders(rawNodes, rawEdges, expanded, rawCycles) {
   }
   const edges = [...merged.values()];
 
-  // cycles of the aggregated graph via layerAssign's SCC pass (self-edges
-  // were dropped above, so only multi-node components count)
   const { sccOf } = layerAssign(nodes.length, edges.map((e) => ({ f: e[0], t: e[1] })));
-  const groups = new Map();
+  const byScc = new Map();
   sccOf.forEach((c, v) => {
-    if (!groups.has(c)) groups.set(c, []);
-    groups.get(c).push(v);
+    if (!byScc.has(c)) byScc.set(c, []);
+    byScc.get(c).push(v);
   });
-  const cycles = [...groups.values()].filter((g) => g.length > 1);
+  const cycles = [...byScc.values()].filter((g) => g.length > 1);
 
-  // An aggregated SCC can be a projection artifact: two groups mutually
-  // importing through DIFFERENT files with no underlying folder cycle.
-  // A displayed cycle is "real" only if some raw cycle spans >= 2 of its
-  // aggregate nodes.
+  // A displayed SCC is a real cycle only if some true cycle (folder, file, or
+  // function level) projects onto >= 2 of its members; otherwise it is a
+  // projection artifact of coarse aggregation.
   let cycleReal = cycles.map(() => true);
-  if (rawCycles) {
-    const projections = rawCycles
-      .map((c) => new Set(c.map((v) => displayFolder(rawNodes[v].id, expanded))))
+  if (trueCycles) {
+    const projections = trueCycles
+      .map((c) => new Set(c.map((id) => displayNode(id, expanded))))
       .filter((s) => s.size > 1);
     cycleReal = cycles.map((members) => {
       const memberIds = new Set(members.map((m) => nodes[m].id));

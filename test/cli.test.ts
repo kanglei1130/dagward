@@ -11,7 +11,7 @@ afterAll(() => {
 });
 
 describe("cli", () => {
-  it("writes all four output files for a fixture project", () => {
+  it("writes all output files for a fixture project", () => {
     const fixture = path.join(__dirname, "fixtures", "simple");
     const code = main(["init", fixture, "--out", tmpDir]);
     expect(code).toBe(0);
@@ -22,11 +22,18 @@ describe("cli", () => {
       "graph.files.json",
       "graph.folders.json",
       "graph.functions.json",
+      "graph.unified.json",
     ]);
 
     const files = JSON.parse(fs.readFileSync(path.join(tmpDir, "graph.files.json"), "utf8"));
     expect(files.version).toBe(1);
     expect(files.level).toBe("file");
+
+    const unified = JSON.parse(fs.readFileSync(path.join(tmpDir, "graph.unified.json"), "utf8"));
+    expect(unified.level).toBe("unified");
+    // module nodes (file ids, no #) + function nodes (with #)
+    expect(unified.nodes.some((n: { id: string }) => n.id.includes("#"))).toBe(true);
+    expect(unified.nodes.some((n: { id: string }) => !n.id.includes("#"))).toBe(true);
   });
 
   it("returns 2 for a directory without a tsconfig", () => {

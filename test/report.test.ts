@@ -14,6 +14,7 @@ function reportFor(fixtureName: string): string {
     files,
     functions: buildFunctionGraph(project),
     skippedDynamicImports,
+    unusedImports: [],
     version: "0.0.0-test",
   };
   // strip the machine-specific absolute root for stable snapshots

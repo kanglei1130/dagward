@@ -1,20 +1,18 @@
 "use strict";
 (() => {
   const DATA = window.DAGWARD_DATA;
-  // annotations live on the graph nodes themselves; function nodes inherit
-  // their file's annotation via this lookup
+  // annotations live on module (file) nodes; function nodes inherit their
+  // file's annotation via this lookup
   const FILE_ANN = new Map(
-    DATA.levels.file.nodes.filter((n) => n.ann).map((n) => [n.id, n.ann]),
+    DATA.nodes.filter((n) => n.ann && !n.id.includes("#")).map((n) => [n.id, n.ann]),
   );
-  // edge-kind index table: the data blob is authoritative (viz.ts emits it);
-  // the literal is a fallback for older blobs
+  // edge-kind index table: the data blob is authoritative (viz.ts emits it)
   const KINDS = DATA.kinds || ["value", "type", "dynamic", "call", "reference"];
   // single source for the side vocabulary, in lane order (shared sits
-  // between the sides it serves); legend labels and lane titles both
-  // derive from this table
+  // between the sides it serves)
   const SIDES = [
     { key: "frontend", label: "frontend", laneTitle: "frontend", token: "--s-frontend" },
-    { key: "shared", label: "shared (pure/isomorphic)", laneTitle: "shared · pure", token: "--s-shared" },
+    { key: "shared", label: "pure", laneTitle: "pure", token: "--s-shared" },
     { key: "backend", label: "backend", laneTitle: "backend", token: "--s-backend" },
     { key: "tooling", label: "scripts / prisma / data", laneTitle: "tooling", token: "--s-tooling" },
   ];
@@ -25,11 +23,7 @@
     { key: "tooling", label: "scripts / prisma / data", token: "--c-tooling", test: (id) => /^(scripts|prisma|data)(\/|$)/.test(id) },
     { key: "other", label: "everything else", token: "--c-other", test: () => true },
   ];
-  const LEVELS = [
-    { key: "folder", label: "Folders", kinds: ["value", "type"] },
-    { key: "file", label: "Files", kinds: ["value", "type", "dynamic"] },
-    { key: "function", label: "Functions", kinds: ["call", "reference"] },
-  ];
+  const KIND_LABEL = { folder: "folder", file: "file", function: "function" };
 
   // ---- theme colors, re-read on theme change ----
   let C = {};
@@ -57,47 +51,41 @@
     return hash >= 0 ? id.slice(0, hash) : id;
   }
   function areaOf(id) {
-    const fileId = fileIdOf(id);
-    return AREAS.find((a) => a.test(fileId)).key;
+    return AREAS.find((a) => a.test(fileIdOf(id))).key;
   }
   function shortName(id) {
-    const hash = id.indexOf("#");
-    if (hash >= 0) return id.slice(id.lastIndexOf("/", hash) + 1);
     const slash = id.lastIndexOf("/");
     return slash >= 0 ? id.slice(slash + 1) : id;
   }
+  function nodeLabel(n) {
+    if (n.kind === "function") return n.id.slice(n.id.indexOf("#") + 1);
+    if (n.kind === "folder") return shortName(n.id) + (n.hidden ? " +" + n.fileCount : "");
+    return shortName(n.id) + (n.fnCount ? " {" + n.fnCount + "}" : ""); // file
+  }
 
-  function buildLevel(key) {
-    const raw =
-      key === "folder"
-        ? aggregateFolders(
-            DATA.levels.folder.nodes,
-            DATA.levels.folder.edges,
-            folderExpanded,
-            DATA.levels.folder.cycles,
-          )
-        : DATA.levels[key];
+  let expanded = initialExpanded(DATA.nodes);
+  let G = null;
+
+  function buildView() {
+    const raw = aggregate(DATA.nodes, DATA.edges, expanded, DATA.trueCycles);
     const nodes = raw.nodes.map((n, i) => {
       const ann = n.ann ?? FILE_ANN.get(fileIdOf(n.id));
       return {
-        i, id: n.id, fc: n.fc, ln: n.ln, hidden: n.hidden || 0,
-        area: areaOf(n.id), label: shortName(n.id) + (n.hidden ? " +" + n.hidden : ""),
+        i, id: n.id, kind: n.kind, ln: n.ln,
+        hidden: n.hidden, fileCount: n.fileCount, fnCount: n.fnCount,
+        area: areaOf(n.id), label: nodeLabel(n),
         ann, side: ann?.side ?? "shared",
         query: (n.id + " " + (ann?.summary || "")).toLowerCase(),
         fanIn: 0, fanOut: 0, cycle: -1,
         x: 0, y: 0, vx: 0, vy: 0, r: 4, fixed: false,
       };
     });
-    const edges = raw.edges.map(([f, t, k, w]) => ({
-      f, t, kind: KINDS[k], w, cycle: false,
-    }));
+    const edges = raw.edges.map(([f, t, k, w]) => ({ f, t, kind: KINDS[k], w, cycle: false }));
     for (const e of edges) {
       nodes[e.f].fanOut += 1;
       nodes[e.t].fanIn += 1;
     }
-    // real-vs-projection classification comes from aggregateFolders for the
-    // folder level; other levels only ever show real cycles
-    const cycleReal = raw.cycleReal ?? raw.cycles.map(() => true);
+    const cycleReal = raw.cycleReal;
     raw.cycles.forEach((members, ci) => {
       for (const m of members) {
         nodes[m].cycle = ci;
@@ -110,23 +98,18 @@
       e.cycleReal = e.cycle && a.cycleReal;
     }
     for (const n of nodes) {
-      const deg = key === "folder" ? (n.fc ?? 1) : n.fanIn + n.fanOut;
-      n.r = Math.min(16, 3.5 + 2.2 * Math.sqrt(deg));
+      const deg = n.kind === "folder" ? n.fileCount : n.fanIn + n.fanOut;
+      n.r = Math.min(16, 3.5 + 2.2 * Math.sqrt(deg || 1));
     }
-    // positions are assigned by applyLayout (layered coordinates, which
-    // also seed the force simulation)
-    return { key, nodes, edges, cycles: raw.cycles, cycleReal, alpha: 1 };
+    return { nodes, edges, cycles: raw.cycles, cycleReal, alpha: 1 };
   }
 
-  const graphs = {};
-  let G = null;
   let layoutMode = "layered";
   let splitMode = true;
-  let folderExpanded = new Set(["src"]);
 
   // ---- layered layout (layerAssign comes from layers.js) ----
-  const SPACING = { folder: 110, file: 52, function: 40 };
-  const LAYER_GAP = { folder: 170, file: 140, function: 120 };
+  const SPACING = 64;
+  const LAYER_GAP = 150;
 
   function computeLayered(g) {
     const cacheKey = splitMode ? "split" : "flat";
@@ -162,8 +145,8 @@
       }
     }
 
-    const spacing = SPACING[g.key];
-    const gap = LAYER_GAP[g.key];
+    const spacing = SPACING;
+    const gap = LAYER_GAP;
     const pos = new Array(N);
     const bands = [];
     let lanes = null;
@@ -175,7 +158,7 @@
       const present = LANE_ORDER.filter((k) => g.nodes.some((n, v) => laneOf(v) === k));
       const cells = layers.map((layer) => {
         const byLane = Object.fromEntries(present.map((k) => [k, []]));
-        for (const v of layer) byLane[laneOf(v)].push(v); // barycenter order preserved
+        for (const v of layer) byLane[laneOf(v)].push(v);
         return byLane;
       });
       const maxCell = Object.fromEntries(present.map((k) => [k, 1]));
@@ -186,12 +169,7 @@
       let cursor = 0;
       lanes = present.map((k) => {
         const width = maxCell[k] * spacing;
-        const meta = {
-          key: k,
-          title: SIDES.find((s) => s.key === k).laneTitle,
-          x0: cursor,
-          x1: cursor + width,
-        };
+        const meta = { key: k, title: SIDES.find((s) => s.key === k).laneTitle, x0: cursor, x1: cursor + width };
         cursor += width + gutter;
         return meta;
       });
@@ -266,7 +244,6 @@
       for (const n of G.nodes) { n.x = G.forcePos[n.i].x; n.y = G.forcePos[n.i].y; }
       reheat(0.2);
     } else {
-      // seed the simulation from the layered arrangement for continuity
       const { pos } = computeLayered(G);
       for (const n of G.nodes) { n.x = pos[n.i].x; n.y = pos[n.i].y; }
       reheat(1);
@@ -296,12 +273,10 @@
   }
 
   // ---- force simulation (grid-bucketed repulsion) ----
-  const REST = { folder: 70, file: 42, function: 30 };
+  const REST = 44;
   function tick(g) {
     const nodes = g.nodes, edges = g.edges;
     const alpha = g.alpha;
-    // numeric cell keys: string keys would allocate ~10 short-lived strings
-    // per node per frame
     const cell = 60, OFF = 32768, SPAN = 65536;
     const grid = new Map();
     for (const n of nodes) {
@@ -329,13 +304,12 @@
         }
       }
     }
-    const rest = REST[g.key];
     for (const e of edges) {
       const a = nodes[e.f], b = nodes[e.t];
       if (a === b) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d = Math.max(1, Math.hypot(dx, dy));
-      const f = ((d - rest) / d) * 0.06 * alpha;
+      const f = ((d - REST) / d) * 0.06 * alpha;
       a.vx += dx * f; a.vy += dy * f;
       b.vx -= dx * f; b.vy -= dy * f;
     }
@@ -359,8 +333,8 @@
   let view = { s: 1, tx: 0, ty: 0 };
   let hover = null, selected = null, selectedCycle = -1;
   let searchSet = null;
-  let cvRect = { width: 0, height: 0, left: 0, top: 0 }; // cached in resize()
-  let hlCache; // memoized highlightSets(); undefined = recompute on next draw
+  let cvRect = { width: 0, height: 0, left: 0, top: 0 };
+  let hlCache;
   let colorMode = "side";
 
   function nodeColor(n) {
@@ -409,7 +383,6 @@
   }
 
   function highlightSets() {
-    // returns {nodes:Set|null, edges:(e)=>bool} of what stays at full opacity
     if (selected != null) {
       const keep = new Set([selected]);
       const edgeKeep = (e) => e.f === selected || e.t === selected;
@@ -443,7 +416,6 @@
     const dashDynamic = [2 / view.s, 4 / view.s];
     const nodes = G.nodes;
 
-    // layer band labels + side lanes
     if (layoutMode === "layered") {
       const L = computeLayered(G);
       ctx.textAlign = "right";
@@ -491,13 +463,11 @@
       else if (e.kind === "dynamic") ctx.setLineDash(dashDynamic);
       else ctx.setLineDash([]);
       if (a === b) {
-        // self-loop: small circle beside the node
         ctx.beginPath();
         ctx.arc(a.x + a.r + 4, a.y - a.r - 4, a.r * 0.9, 0, Math.PI * 2);
         ctx.stroke();
         continue;
       }
-      // same-band edges (cycle members share a layer) bow below the band
       const sameBand = layoutMode === "layered" && Math.abs(a.y - b.y) < 0.5;
       const bowX = (a.x + b.x) / 2;
       const bowY = a.y + Math.min(70, 18 + Math.abs(b.x - a.x) * 0.12);
@@ -506,7 +476,6 @@
       if (sameBand) ctx.quadraticCurveTo(bowX, bowY, b.x, b.y);
       else ctx.lineTo(b.x, b.y);
       ctx.stroke();
-      // direction arrows only when meaningfully zoomed or emphasized
       if ((emphasized || e.cycle || view.s > 1.2) && view.s > 0.35) {
         const sx = sameBand ? bowX : a.x, sy = sameBand ? bowY : a.y;
         const dx = b.x - sx, dy = b.y - sy;
@@ -526,15 +495,13 @@
     }
     ctx.setLineDash([]);
 
-    // nodes
+    // nodes: folders drawn as rounded squares, files as circles, functions as
+    // small diamonds — shape encodes tier alongside the side color
     for (const n of nodes) {
       const kept = hl ? hl.nodes.has(n.i) : true;
       ctx.globalAlpha = kept ? 1 : 0.12;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
       ctx.fillStyle = nodeColor(n);
-      ctx.fill();
-      // 2px surface ring separates overlapping marks
+      drawNodeShape(n);
       ctx.lineWidth = 2 / view.s;
       ctx.strokeStyle = C.surface;
       ctx.stroke();
@@ -554,7 +521,7 @@
       }
     }
 
-    // labels: hubs when zoomed in, plus anything highlighted
+    // labels
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     const fontPx = Math.max(10, 11 / view.s);
@@ -576,6 +543,25 @@
     }
     ctx.globalAlpha = 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawNodeShape(n) {
+    const r = n.r;
+    ctx.beginPath();
+    if (n.kind === "folder") {
+      const s = r * 0.92;
+      ctx.roundRect(n.x - s, n.y - s, s * 2, s * 2, s * 0.4);
+    } else if (n.kind === "function") {
+      const s = r * 1.15;
+      ctx.moveTo(n.x, n.y - s);
+      ctx.lineTo(n.x + s, n.y);
+      ctx.lineTo(n.x, n.y + s);
+      ctx.lineTo(n.x - s, n.y);
+      ctx.closePath();
+    } else {
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    }
+    ctx.fill();
   }
 
   // ---- simulation loop ----
@@ -643,21 +629,22 @@
     const newHover = n ? n.i : null;
     cv.style.cursor = n ? "pointer" : "";
     if (n) {
-      // rebuild the tooltip only when the hovered node changes; its
-      // position tracks every move
       if (newHover !== hover) {
         const flow = `${n.fanIn} in · ${n.fanOut} out`;
         const extra =
-          G.key === "folder" ? `${n.fc} file${n.fc === 1 ? "" : "s"} · ${flow}` :
-          G.key === "function" ? `${flow}${n.ln ? ` · line ${n.ln}` : ""}` : flow;
+          n.kind === "folder" ? `${n.fileCount} file${n.fileCount === 1 ? "" : "s"} · ${flow}` :
+          n.kind === "file" ? `${n.fnCount} fn${n.fnCount === 1 ? "" : "s"} · ${flow}` :
+          `${flow}${n.ln ? ` · line ${n.ln}` : ""}`;
+        const drillHint =
+          n.kind === "folder" || (n.kind === "file" && n.fnCount) ? " · double-click to expand" : "";
         const cyc =
           n.cycle >= 0
             ? n.cycleReal
               ? ` · <span style="color:var(--critical)">in cycle ${n.cycle}</span>`
-              : ` · <span style="color:var(--muted)">in group loop ${n.cycle} (no real cycle)</span>`
+              : ` · <span style="color:var(--muted)">group loop ${n.cycle} (no real cycle)</span>`
             : "";
         const summary = n.ann?.summary ? `<div class="tmeta">${escapeHtml(n.ann.summary)}</div>` : "";
-        tip.innerHTML = `<div class="tid">${escapeHtml(n.id)}</div>${summary}<div class="tmeta">${n.side} · ${AREAS.find(a => a.key === n.area).label} · ${extra}${cyc}</div>`;
+        tip.innerHTML = `<div class="tid">${escapeHtml(n.id)}</div>${summary}<div class="tmeta">${KIND_LABEL[n.kind]} · ${n.side} · ${extra}${cyc}${drillHint}</div>`;
         tip.style.display = "block";
       }
       const tx = Math.min(px + 14, cvRect.width - 320);
@@ -687,41 +674,42 @@
   });
   cv.addEventListener("pointerleave", () => { hover = null; tip.style.display = "none"; draw(); });
 
-  // folder drill-down: double-click expands an aggregate, collapses otherwise
-  function refreshFolders() {
-    delete graphs.folder;
-    if (G && G.key === "folder") activate("folder");
+  // ---- drill-down: folder → file → function ----
+  function rebuild() {
+    G = buildView();
+    applyLayout();
+    fitTo(G.nodes);
+    clearSelection();
+    renderStats();
+    buildLegends();
+    renderHubs();
+  }
+  function nearestExpandedContainer(id) {
+    let target = null;
+    for (const c of containers(id)) if (expanded.has(c)) target = c;
+    return target;
+  }
+  function drill(n) {
+    if (n.kind === "folder") { expanded.add(n.id); rebuild(); return; }
+    if (n.kind === "file" && n.fnCount > 0 && !expanded.has(n.id)) {
+      expanded.add(n.id); // reveal this file's functions
+      rebuild();
+      return;
+    }
+    // collapse: an expanded file folds its own functions; otherwise the
+    // deepest expanded container of this node (its file, then folders)
+    const target = n.kind === "file" && expanded.has(n.id) ? n.id : nearestExpandedContainer(n.id);
+    if (target != null) { expanded.delete(target); rebuild(); }
   }
   cv.addEventListener("dblclick", (ev) => {
-    if (!G || G.key !== "folder") return;
     const n = nodeAt(ev.clientX - cvRect.left, ev.clientY - cvRect.top);
-    if (!n) return;
-    if (n.hidden > 0) {
-      folderExpanded.add(n.id);
-      refreshFolders();
-      return;
-    }
-    if (folderExpanded.has(n.id)) {
-      folderExpanded.delete(n.id);
-      refreshFolders();
-      return;
-    }
-    // collapse the deepest expanded ancestor this node came out of
-    const parts = n.id.split("/");
-    let target = null, prefix = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      prefix = prefix ? prefix + "/" + parts[i] : parts[i];
-      if (folderExpanded.has(prefix)) target = prefix;
-    }
-    if (target) {
-      folderExpanded.delete(target);
-      refreshFolders();
-    }
+    if (n) drill(n);
   });
   document.getElementById("reset-folders").addEventListener("click", () => {
-    folderExpanded = new Set(["src"]);
-    refreshFolders();
+    expanded = initialExpanded(DATA.nodes);
+    rebuild();
   });
+
   cv.addEventListener("wheel", (ev) => {
     ev.preventDefault();
     userTouched = true;
@@ -764,8 +752,12 @@
     const sideColor = C.sides[n.side] ?? C.muted;
     const rows = [];
     if (a?.summary) rows.push(`<div class="dsummary">${escapeHtml(a.summary)}</div>`);
+    if (n.kind === "function") {
+      rows.push(`<div class="dsummary">Function of \`${escapeHtml(fileIdOf(n.id))}\` — contract shown is the file's.</div>`);
+    }
     rows.push(
       `<div class="badges">` +
+        `<span class="badge">${KIND_LABEL[n.kind]}</span>` +
         `<span class="badge"><span class="swatch" style="background:${sideColor}"></span>${escapeHtml(n.side)}</span>` +
         (a?.pure ? `<span class="badge">pure</span>` : "") +
         `<span class="badge">${n.fanIn} in · ${n.fanOut} out</span>` +
@@ -822,14 +814,14 @@
         `<div class="row"><span class="swatch" style="background:${C.areas[a.key]}"></span>${a.label}</div>`,
       ).join("");
     }
-    const level = LEVELS.find((l) => l.key === G.key);
+    const present = KINDS.filter((k) => G && G.edges.some((e) => e.kind === k));
     const dash = { value: "", call: "", type: "5 4", reference: "5 4", dynamic: "2 4" };
     const edgesEl = document.getElementById("legend-edges");
-    edgesEl.innerHTML = level.kinds.map((k) =>
+    edgesEl.innerHTML = present.map((k) =>
       `<div class="row"><svg class="linesample" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="${C.edge}" stroke-width="2" stroke-dasharray="${dash[k]}"/></svg>${k}</div>`,
     ).join("") +
       `<div class="row"><svg class="linesample" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="${C.critical}" stroke-width="2"/></svg>edge inside a cycle</div>` +
-      (G.key === "folder"
+      (G && G.cycleReal.some((r) => !r)
         ? `<div class="row"><svg class="linesample" height="6"><line x1="0" y1="3" x2="22" y2="3" stroke="${C.muted}" stroke-width="2"/></svg>group loop (aggregate view only)</div>`
         : "");
   }
@@ -846,7 +838,7 @@
   function renderCycleList() {
     const el = document.getElementById("cycles");
     if (!G.cycles.length) {
-      el.innerHTML = `<div class="empty">None — this level is a DAG. 🎉</div>`;
+      el.innerHTML = `<div class="empty">None — the current view is a DAG. 🎉</div>`;
       return;
     }
     el.innerHTML = "";
@@ -854,7 +846,7 @@
       const note = document.createElement("div");
       note.className = "empty";
       note.textContent =
-        "No true cycles at this level — the loops below are mutual imports between collapsed groups (expand them to inspect).";
+        "No true cycles here — the loops below are mutual dependencies between collapsed groups (expand them to inspect).";
       el.appendChild(note);
     }
     G.cycles.forEach((members, ci) => {
@@ -903,42 +895,9 @@
     }
   }
 
-  // ---- tabs & boot ----
-  const tabsEl = document.getElementById("tabs");
-  LEVELS.forEach((level) => {
-    const btn = document.createElement("button");
-    btn.className = "tab";
-    btn.type = "button";
-    btn.role = "tab";
-    btn.innerHTML = `${level.label}<span class="n">${DATA.levels[level.key].nodes.length}</span>`;
-    btn.addEventListener("click", () => activate(level.key));
-    btn.dataset.level = level.key;
-    tabsEl.appendChild(btn);
-  });
-
-  function activate(key) {
-    for (const b of tabsEl.children) b.setAttribute("aria-selected", String(b.dataset.level === key));
-    if (!graphs[key]) graphs[key] = buildLevel(key);
-    G = graphs[key];
-    document.getElementById("reset-folders").hidden = key !== "folder";
-    applyLayout();
-    fitTo(G.nodes);
-    if (layoutMode === "force" && G.alpha > 0.05) {
-      // fit periodically while the simulation unfolds, unless the user takes over
-      let fits = 0;
-      userTouched = false;
-      const interval = setInterval(() => {
-        if (userTouched || ++fits > 6 || G.alpha < 0.05) { clearInterval(interval); return; }
-        fitTo(G.nodes);
-      }, 500);
-    }
-    clearSelection(); // also re-renders the cycle list and details for the new G
-    renderStats();
-    buildLegends();
-    renderHubs();
-  }
-
-  document.getElementById("rootpath").textContent = DATA.root + " · folder / file / function dependency graphs";
+  // ---- boot ----
+  document.getElementById("rootpath").textContent =
+    DATA.root + " · double-click to drill folder → file → function";
   resize();
-  activate("folder");
+  rebuild();
 })();
