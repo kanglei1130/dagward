@@ -13,12 +13,12 @@ import fs from "node:fs";
 
 const [, , graphPath, verb, file] = process.argv;
 if (!graphPath || !verb) {
-  console.error("usage: gq.mjs <graph.files.json> <deps|cone|importers|affects|cycles|hubs> [file]");
+  console.error("usage: gq.mjs <graph.files.json> <deps|cone|conedoc|importers|affects|annotate|cycles|hubs> [file]");
   process.exit(2);
 }
 const g = JSON.parse(fs.readFileSync(graphPath, "utf8"));
-const out = new Map(), inn = new Map();
-for (const n of g.nodes) { out.set(n.id, []); inn.set(n.id, []); }
+const out = new Map(), inn = new Map(), ann = new Map();
+for (const n of g.nodes) { out.set(n.id, []); inn.set(n.id, []); if (n.annotation) ann.set(n.id, n.annotation); }
 for (const e of g.edges) { out.get(e.from)?.push(e.to); inn.get(e.to)?.push(e.from); }
 
 function closure(start, adj) {
@@ -40,6 +40,17 @@ if (verb === "deps")       { need(file); console.log(JSON.stringify([...new Set(
 else if (verb === "importers") { need(file); console.log(JSON.stringify([...new Set(inn.get(file))].sort(), null, 2)); }
 else if (verb === "cone")  { need(file); const c = closure(file, out); console.log(JSON.stringify({ file, coneSize: c.length, cone: c }, null, 2)); }
 else if (verb === "affects"){ need(file); const a = closure(file, inn); console.log(JSON.stringify({ file, affects: a }, null, 2)); }
+else if (verb === "annotate"){ need(file); console.log(JSON.stringify(ann.get(file) ?? { note: "no annotation authored for this file" }, null, 2)); }
+else if (verb === "conedoc") {
+  // depth-1 contract pack: the cone as ids + each file's annotation (what it
+  // DOES), so you comprehend dependencies without reading their source.
+  need(file);
+  const rows = closure(file, out).map((id) => {
+    const a = ann.get(id) || {};
+    return { id, summary: a.summary, should: a.should, shouldNot: a.shouldNot, side: a.side, pure: a.pure };
+  });
+  console.log(JSON.stringify({ file, coneSize: rows.length, cone: rows }, null, 2));
+}
 else if (verb === "cycles"){ console.log(JSON.stringify(g.cycles ?? [], null, 2)); }
 else if (verb === "hubs")  {
   const rows = g.nodes.map(n => ({ id: n.id, importedBy: (inn.get(n.id)||[]).length, imports: (out.get(n.id)||[]).length }))
