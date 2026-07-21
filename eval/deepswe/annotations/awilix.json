@@ -1,0 +1,110 @@
+{
+  "src/injection-mode.ts": {
+    "summary": "Defines the InjectionMode enum (PROXY, CLASSIC) and its string-literal type.",
+    "inputs": "Nothing; standalone constant module.",
+    "outputs": "InjectionModeType type and the InjectionMode constant record.",
+    "should": "Declare the two supported dependency injection modes as a frozen-style lookup record and mirror the type.",
+    "shouldNot": "Contain resolution logic, import other modules, or perform any runtime behavior beyond declaring constants.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/lifetime.ts": {
+    "summary": "Defines the Lifetime enum (SINGLETON, TRANSIENT, SCOPED) plus a lifetime-comparison helper.",
+    "inputs": "Two LifetimeType values for the comparison helper.",
+    "outputs": "LifetimeType type, Lifetime record, isLifetimeLonger predicate.",
+    "should": "Enumerate registration lifetimes and expose a pure predicate ranking lifetime length for leak checks.",
+    "shouldNot": "Perform resolution, caching, or import container/resolver modules; hold state.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/utils.ts": {
+    "summary": "Small generic helpers: array flatten/last/uniq, name-value coercion, and function/class detection.",
+    "inputs": "Arrays, name/value pairs, and functions/values to inspect.",
+    "outputs": "flatten, nameValueToObject, last, isClass, isFunction, uniq.",
+    "should": "Provide stateless utility functions, using the tokenizer only to classify a function as a class.",
+    "shouldNot": "Contain domain logic for containers/resolvers, mutate inputs, or perform I/O.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/function-tokenizer.ts": {
+    "summary": "A hand-written lexer that tokenizes JS/TS function source into a stream of tokens.",
+    "inputs": "A function's source string and optional tokenizer flags.",
+    "outputs": "createTokenizer factory returning next/done, plus Token/TokenType types and TokenizerFlags.",
+    "should": "Scan identifiers, parens, commas, defaults, comments, and strings, skipping expressions to feed the param parser.",
+    "shouldNot": "Understand DI semantics, resolve dependencies, or depend on any other project module.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/param-parser.ts": {
+    "summary": "Parses a function/class-constructor source string into its list of parameters via the tokenizer.",
+    "inputs": "Function source string; consumes tokens from function-tokenizer.",
+    "outputs": "Parameter interface and parseParameterList (array of params or null).",
+    "should": "Extract parameter names and optionality for arrow/normal/generator/async functions and class constructors.",
+    "shouldNot": "Resolve dependencies, touch the container, or perform I/O; only structural parsing.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/errors.ts": {
+    "summary": "Defines the Awilix error hierarchy and message-formatting for type, resolution, and registration failures.",
+    "inputs": "Error messages, names, resolution stacks, and type-assertion arguments.",
+    "outputs": "ExtendableError, AwilixError, AwilixTypeError (+assert), AwilixResolutionError, AwilixRegistrationError.",
+    "should": "Construct rich error objects, format resolution paths, and assert type conditions.",
+    "shouldNot": "Perform resolution or registration itself; import container/resolver runtime (only ResolutionStack type).",
+    "side": "shared",
+    "pure": false
+  },
+  "src/list-modules.ts": {
+    "summary": "Globs the filesystem for module files and returns their names, resolved paths, and options.",
+    "inputs": "Glob pattern(s) with optional per-pattern options; cwd and glob implementation.",
+    "outputs": "listModules function, ListModulesOptions, ModuleDescriptor, GlobWithOptions types.",
+    "should": "Run fast-glob, normalize separators, derive module names, and resolve absolute paths.",
+    "shouldNot": "Require/import the matched modules, register them, or resolve dependencies.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/load-modules.ts": {
+    "summary": "Loads globbed modules (CJS or native ESM) and registers their exports into a container.",
+    "inputs": "Injected deps (listModules, container, require), glob patterns, and load options.",
+    "outputs": "loadModules function plus LoadModulesOptions/Result, name-formatter and descriptor types.",
+    "should": "List, require/import, parse default and RESOLVER-tagged exports, apply name formatting, and register resolvers.",
+    "shouldNot": "Implement globbing, resolver construction internals, or container resolution logic directly.",
+    "side": "backend",
+    "pure": false
+  },
+  "src/resolvers.ts": {
+    "summary": "Builds resolver objects (asValue/asFunction/asClass/aliasTo) and the fluent lifetime/injection/disposer API.",
+    "inputs": "Values, functions, classes, resolver options, and the container at resolve time.",
+    "outputs": "RESOLVER symbol, resolver factories, fluent builders, and the Resolver/BuildResolver type family.",
+    "should": "Create resolve functions, parse dependencies, wrap the cradle/injector proxies, and dispatch by injection mode.",
+    "shouldNot": "Own the registration store, cache, lifetime caching, or filesystem module loading.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/container.ts": {
+    "summary": "Implements the DI container: registration store, cradle proxy, scoped resolution, caching, and disposal.",
+    "inputs": "Container options, resolvers to register, and names to resolve; glob patterns for loadModules.",
+    "outputs": "createContainer plus AwilixContainer and supporting interfaces/types.",
+    "should": "Manage registrations, family tree, lifetime caching, cycle/leak detection, scopes, build, and dispose.",
+    "shouldNot": "Parse function sources, construct resolver builders, or glob the filesystem itself (delegates to those modules).",
+    "side": "backend",
+    "pure": false
+  },
+  "src/awilix.ts": {
+    "summary": "The public entry point re-exporting the library's container, resolvers, errors, and enums.",
+    "inputs": "Named exports from the internal modules.",
+    "outputs": "The library's public API surface (types and runtime values).",
+    "should": "Aggregate and re-export the intended public symbols only.",
+    "shouldNot": "Contain any logic, define new behavior, or expose internal-only helpers.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/load-module-native.d.ts": {
+    "summary": "Ambient type declaration for the native ESM importModule helper used to dynamically import files.",
+    "inputs": "A file path/URL string.",
+    "outputs": "importModule function signature returning a Promise.",
+    "should": "Declare the type contract for native dynamic import so the container can type-check ESM loading.",
+    "shouldNot": "Contain any implementation or runtime code.",
+    "side": "shared",
+    "pure": true
+  }
+}

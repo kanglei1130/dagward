@@ -18,6 +18,8 @@ const repo = process.argv[2];
 if (!repo) { console.error("usage: layer2.mjs <repo_with_dagward-out>"); process.exit(2); }
 const tok = (s) => Math.ceil(s.length / 4);
 const graph = JSON.parse(fs.readFileSync(path.join(repo, "dagward-out/graph.files.json"), "utf8"));
+// real per-file annotation token size (baked onto node.annotation), fallback 126
+const annTok = new Map(graph.nodes.map((n) => [n.id, n.annotation ? tok(JSON.stringify(n.annotation)) : 126]));
 
 // adjacency + transitive cone (out-closure)
 const out = new Map(graph.nodes.map((n) => [n.id, []]));
@@ -34,7 +36,6 @@ const archTokens = tok(fs.readFileSync(path.join(repo, "dagward-out/ARCHITECTURE
 const allSrcTokens = graph.nodes.reduce((a, n) => a + srcTokens(n.id), 0);
 
 // Q2/Q3 — per-file cone (averaged over all files)
-const ANNOTATION_TOKENS = 126; // measured ~contract size per file (README)
 let dagSum = 0, srcSum = 0, annSum = 0, n = 0;
 for (const node of graph.nodes) {
   const cone = coneOf(node.id);
@@ -43,9 +44,9 @@ for (const node of graph.nodes) {
   const dag = tok(JSON.stringify({ file: node.id, coneSize: cone.length, cone }, null, 2));
   // Q2 source answer = read the source of every file in the cone
   const src = cone.reduce((a, id) => a + srcTokens(id), 0);
-  // Q3 annotation projection = read a ~126-token contract per cone file: enough
-  // to COMPREHEND each dependency (what it does) without reading its source
-  const ann = cone.length * ANNOTATION_TOKENS;
+  // Q3 = read each cone file's actual authored contract (comprehend what it does
+  // without reading its source)
+  const ann = cone.reduce((a, id) => a + (annTok.get(id) ?? 126), 0);
   dagSum += dag; srcSum += src; annSum += ann; n++;
 }
 

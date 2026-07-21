@@ -25,11 +25,17 @@ complex task the agent still reads hub *source* to comprehend it. Per-file
 annotations (~126-token contracts) close that gap: comprehend each dependency
 from its contract instead of its source.
 
+Measured with **real authored contracts** (a task-blind annotation pass over each
+repo's base source; ~123 tokens/contract, matching the 126 estimate):
+
 | Repo | Comprehend cone via annotations | via source | Savings |
 |---|---|---|---|
-| ts-pattern | 1,050 tok | 16,567 | **15.8×** (6.3%) |
-| superjson | 725 tok | 3,709 | **5.1×** (19.5%) |
-| awilix (complex) | 761 tok | 8,592 | **11.3×** (8.9%) |
+| ts-pattern | 1,228 tok | 16,567 | **13.5×** |
+| superjson | 694 tok | 3,709 | **5.3×** |
+| awilix (complex) | 778 tok | 8,592 | **11×** |
+
+One-time authoring cost: ~49-97k tokens per (small) repo — amortized; only
+new/moved files need re-annotation.
 
 This is the piece the v2 agent lacked: it got the cone *structure* cheaply, then
 paid full source price to *understand* the hubs. Annotations would cut that

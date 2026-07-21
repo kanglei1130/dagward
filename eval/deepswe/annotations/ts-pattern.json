@@ -1,0 +1,164 @@
+{
+  "src/errors.ts": {
+    "summary": "Defines the NonExhaustiveError thrown when .exhaustive() is called but no pattern matched the input.",
+    "inputs": "Extends the built-in Error class; takes the unmatched input value.",
+    "outputs": "Exports the NonExhaustiveError class, exposing the offending input and a formatted message.",
+    "should": "Serialize the input (via JSON.stringify, falling back to the raw value) into a descriptive error message.",
+    "shouldNot": "Not perform pattern matching, IO, or import from other project modules; not swallow the serialization failure silently beyond the fallback.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/index.ts": {
+    "summary": "Public entry point re-exporting the library's runtime API (match, isMatching, the P/Pattern namespace, NonExhaustiveError).",
+    "inputs": "Imports from ./match, ./is-matching, ./patterns, ./errors.",
+    "outputs": "Named exports: match, isMatching, Pattern, P (alias), NonExhaustiveError.",
+    "should": "Aggregate and surface the intended public surface only.",
+    "shouldNot": "Not contain logic, types, or internal helpers; not export internals (symbols, helpers); other modules must not import from it.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/internals/helpers.ts": {
+    "summary": "Runtime pattern-matching engine: recursively tests whether a value matches a pattern and collects selections.",
+    "inputs": "Consumes internal symbols and Pattern/Matcher type definitions; operates on arbitrary pattern and value pairs plus a select callback.",
+    "outputs": "isObject, isMatcher, matchPattern, getSelectionKeys, flatMap.",
+    "should": "Handle matcher objects, tuple/variadic/object patterns, key presence, optional keys, and value equality; recurse into subpatterns; drive selections via the callback.",
+    "shouldNot": "Not import from the public entry point (index); not depend on match.ts or patterns.ts runtime; internal only, not part of the public API.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/internals/symbols.ts": {
+    "summary": "Declares the internal Symbol keys and one string key used to tag and discriminate matcher/select/variadic patterns.",
+    "inputs": "None; standalone Symbol.for declarations.",
+    "outputs": "matcher, unset, isVariadic, anonymousSelectKey, override — each as a value and a type alias.",
+    "should": "Provide stable, collision-free keys visible to tsc for inference.",
+    "shouldNot": "Not contain logic or import other modules; users should not import these directly.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/is-matching.ts": {
+    "summary": "Implements isMatching: a curried/direct type-guard that checks whether a value matches a pattern.",
+    "inputs": "Imports matchPattern from internals, the P namespace, and Pattern/helper types; takes a pattern and optionally a value.",
+    "outputs": "isMatching overloaded function returning either a type-guard predicate or a boolean.",
+    "should": "Delegate matching to matchPattern; support the 1-arg (guard factory) and 2-arg (direct check) forms; throw on wrong arity.",
+    "shouldNot": "Not reimplement matching logic; not import from the public entry point (index); not mutate inputs.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/match.ts": {
+    "summary": "Implements match(): a chainable builder (MatchExpression) evaluating patterns against an input and running handlers.",
+    "inputs": "Imports matchPattern, symbols, NonExhaustiveError, and Pattern/Match types; operates on the input value and registered clauses.",
+    "outputs": "match function returning a Match expression; internal MatchExpression class with with/when/otherwise/exhaustive/run/returnType/narrow.",
+    "should": "Track matched state immutably, evaluate patterns/guards, collect selections, invoke handlers, and throw NonExhaustiveError by default when unmatched.",
+    "shouldNot": "Not reimplement low-level matching (delegates to matchPattern); not import from the public entry point; not expose internal builder types publicly.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/patterns.ts": {
+    "summary": "The P module: constructs all runtime patterns (wildcards, primitives, combinators, guards, selectors) and their chainable APIs.",
+    "inputs": "Imports internals (matchPattern, getSelectionKeys, flatMap, symbols), isMatching, and Pattern/type definitions.",
+    "outputs": "Pattern builders (array, set, map, record, intersection, union, not, when, select, optional, instanceOf, shape), wildcards (any, _, string, number, bigint, boolean, symbol, nullish, nonNullable), and type re-exports (Pattern, infer, narrow).",
+    "should": "Build Matcher objects implementing the matcher protocol and wrap them in chainable/variadic helpers for method chaining.",
+    "shouldNot": "Not import from the public entry point (index); not implement the recursive match traversal itself (delegates to matchPattern).",
+    "side": "shared",
+    "pure": false
+  },
+  "src/types/index.ts": {
+    "summary": "Type barrel re-exporting everything from Pattern.",
+    "inputs": "Re-exports from ./Pattern.",
+    "outputs": "All Pattern type exports.",
+    "should": "Aggregate the Pattern type surface only.",
+    "shouldNot": "Not contain type logic or runtime code; not re-export unrelated internal type modules.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/helpers.ts": {
+    "summary": "Foundational type-level utility library (unions, tuples, literals, object/array predicates, HKT Fn) used across the type system.",
+    "inputs": "None; pure conditional/mapped type definitions.",
+    "outputs": "Many utility types: ValueOf, UnionToIntersection, UnionToTuple, Equal, IsAny, IsLiteral, IsPlainObject, Compute, Fn, Call, and more.",
+    "should": "Provide reusable generic type primitives with no dependencies.",
+    "shouldNot": "Not import from other project modules (leaf of the type graph); contain no runtime values.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/Pattern.ts": {
+    "summary": "Core pattern type definitions: the Matcher protocol, per-combinator matcher aliases, Pattern<a>, and the Chainable method interfaces.",
+    "inputs": "Imports symbols, helper types, FindSelected selection types, matcher (from patterns), and ExtractPreciseValue.",
+    "outputs": "Matcher, MatcherType, MatchResult, ArrayP/RecordP/OptionalP/etc., Pattern, UnknownValuePattern, and Chainable/StringChainable/NumberChainable/BigIntChainable/ArrayChainable interfaces.",
+    "should": "Model the shape of every pattern and the fluent chaining API at the type level.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only module.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/Match.ts": {
+    "summary": "Public type definition of the match() builder, threading handled cases and inferred output through .with/.when/.exhaustive/etc.",
+    "inputs": "Imports symbols, Pattern/MatchedValue, InvertPattern(ForExclude), DeepExclude, FindSelected, and helper types.",
+    "outputs": "Match type and its overloaded method signatures; Exhaustive helper type; NonExhaustiveError/TSPatternError marker interfaces.",
+    "should": "Compute narrowed selections, exclude handled cases from the input union, and enforce exhaustiveness at the type level.",
+    "shouldNot": "Not contain runtime logic; not import from the public entry point; type-only module.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/BuildMany.ts": {
+    "summary": "Type utility that rebuilds a data structure by setting values at given deep paths (used to reconstruct distributed unions).",
+    "inputs": "Imports Iterator, IsOptionalKeysOf, UpdateAt, ValueOf from helpers; takes a data type and [value, path] pairs.",
+    "outputs": "BuildMany and SetDeep types.",
+    "should": "Recursively descend arrays/tuples/Set/Map/objects and set the value at each path, preserving optional-key modifiers.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/DeepExclude.ts": {
+    "summary": "Thin type wrapper computing the deep exclusion of pattern b from type a via union distribution.",
+    "inputs": "Imports DistributeMatchingUnions; takes types a and b.",
+    "outputs": "DeepExclude type.",
+    "should": "Distribute matching unions in a and Exclude b from the result.",
+    "shouldNot": "Not contain runtime code; not reimplement distribution (delegates to DistributeUnions); type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/DistributeUnions.ts": {
+    "summary": "Type engine that expands unions inside a data structure into the union of all concrete combinations matching a pattern.",
+    "inputs": "Imports BuildMany, IsMatching, and many helper types; takes a data type a and pattern p.",
+    "outputs": "DistributeMatchingUnions, FindUnions(Many), Distribute, ArrayToVariadicUnion types.",
+    "should": "Locate matching unions (bounded to 5 levels), produce [value, path] combination lists, and rebuild via BuildMany.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/ExtractPreciseValue.ts": {
+    "summary": "Type utility narrowing a value type a to the most precise subtype implied by an inverted pattern b.",
+    "inputs": "Imports Override plus helper types; takes value type a and inverted-pattern type b.",
+    "outputs": "ExtractPreciseValue and ExtractPreciseArrayValue types.",
+    "should": "Recurse through arrays/tuples, Map/Set, and plain objects to intersect precise values, honoring Override and non-nullable {} semantics.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/FindSelected.ts": {
+    "summary": "Type engine that derives the handler's selection argument type from selects embedded in a pattern.",
+    "inputs": "Imports symbols, Matcher/Pattern types, and helper types; takes input i and pattern p.",
+    "outputs": "None/Some/SelectionType, FindSelectionUnion, Selections, FindSelected, and select-error types.",
+    "should": "Walk matchers/arrays/objects to collect named/anonymous selections and map them to handler arguments, flagging illegal mixed/multiple anonymous selects.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/InvertPattern.ts": {
+    "summary": "Type engine inverting a pattern into the value type it represents, both for inference and for exclusion of handled cases.",
+    "inputs": "Imports DeepExclude, Matcher/Pattern/Override types, and many helpers; takes a pattern p and input i.",
+    "outputs": "InvertPattern, InvertPatternForExclude, and their internal/array/reduce helper types.",
+    "should": "Map each matcher kind to its represented value type, handle arrays/objects/optional keys, and compute exclusion types respecting literal/primitive rules.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/types/IsMatching.ts": {
+    "summary": "Type-level predicate deciding whether value type a is matched by (inverted) pattern type b.",
+    "inputs": "Imports helper types (Primitives, IsUnion, IsPlainObject, ValueOf, etc.); takes types a and b.",
+    "outputs": "IsMatching type (plus IsMatchingTuple/IsMatchingArray helpers).",
+    "should": "Distribute over unions and compare primitives, tuples/arrays, and plain objects to yield true/false.",
+    "shouldNot": "Not contain runtime code; not import from the public entry point; type-only.",
+    "side": "shared",
+    "pure": true
+  }
+}

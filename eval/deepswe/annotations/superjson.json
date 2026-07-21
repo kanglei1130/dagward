@@ -1,0 +1,110 @@
+{
+  "src/accessDeep.ts": {
+    "summary": "Navigates and mutates nested values (objects, arrays, Maps, Sets) at a given decoded path.",
+    "inputs": "A root object/value and a path array of string/number segments; a mapper function for writes.",
+    "outputs": "getDeep (reads value at path) and setDeep (applies mapper at path, returns mutated root).",
+    "should": "Traverse Map/Set via numeric row/key-value indexing, validate paths, and apply mappers in place.",
+    "shouldNot": "Parse or stringify path strings, know about type annotations, or perform serialization logic.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/class-registry.ts": {
+    "summary": "Registry mapping user classes to identifiers plus an optional allow-list of serializable props.",
+    "inputs": "Class constructors and RegisterOptions (identifier, allowProps).",
+    "outputs": "ClassRegistry class with register and getAllowedProps.",
+    "should": "Extend Registry using class name as default id, track per-class allowed prop lists.",
+    "shouldNot": "Serialize/deserialize instances or apply transformation rules; only stores registration data.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/custom-transformer-registry.ts": {
+    "summary": "Registry of user-defined custom transformers keyed by name for arbitrary value serialization.",
+    "inputs": "CustomTransfomer objects (name, isApplicable, serialize, deserialize) and candidate values.",
+    "outputs": "CustomTransformerRegistry with register, findApplicable, findByName; CustomTransfomer type.",
+    "should": "Store transformers by name and locate the first applicable one for a value.",
+    "shouldNot": "Invoke serialize/deserialize itself or know about built-in type rules; only registers and finds.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/double-indexed-kv.ts": {
+    "summary": "Bidirectional key/value store allowing lookup in both directions.",
+    "inputs": "Key/value pairs of generic types.",
+    "outputs": "DoubleIndexedKV class with set, getByKey, getByValue, clear.",
+    "should": "Maintain two synchronized Maps for forward and reverse lookup.",
+    "shouldNot": "Generate identifiers, apply registration policy, or contain domain-specific logic.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/index.ts": {
+    "summary": "Public SuperJSON class and entry point orchestrating serialize/deserialize and registries.",
+    "inputs": "SuperJSONValue objects to serialize, SuperJSONResult payloads to deserialize, registration calls.",
+    "outputs": "Default SuperJSON class, static/instance serialize, deserialize, stringify, parse, register* helpers.",
+    "should": "Coordinate walker/plainer, assemble meta annotations, own class/symbol/custom registries and error props.",
+    "shouldNot": "Implement low-level transformation rules or path/tree traversal itself; delegates to plainer/transformer.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/is.ts": {
+    "summary": "Collection of type-guard predicates for runtime type detection.",
+    "inputs": "Arbitrary values.",
+    "outputs": "Boolean type-guard functions (isMap, isDate, isPrimitive, isTypedArray, etc.) and TypedArray types.",
+    "should": "Return precise type predicates using typeof, instanceof, and Object.prototype.toString.",
+    "shouldNot": "Transform values, hold state, or depend on other project modules.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/pathstringifier.ts": {
+    "summary": "Encodes and decodes property paths to/from dot-delimited strings with escaping.",
+    "inputs": "String-array paths to stringify; encoded path strings (with legacy flag) to parse.",
+    "outputs": "escapeKey, stringifyPath, parsePath, StringifiedPath type.",
+    "should": "Escape/unescape dots and backslashes, split on unescaped dots, support legacy path mode.",
+    "shouldNot": "Access or mutate the object graph, or know about type annotations.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/plainer.ts": {
+    "summary": "Recursively walks a value into a plain JSON tree with annotations and applies them back on deserialize.",
+    "inputs": "Values to walk, identity maps, a SuperJSON instance, and annotation trees to reverse.",
+    "outputs": "walker, applyValueAnnotations, applyReferentialEqualityAnnotations, generateReferentialEqualityAnnotations, tree types.",
+    "should": "Traverse recursively, invoke transformValue, build minimised annotation trees, dedupe/track referential equality, guard prototype pollution.",
+    "shouldNot": "Define concrete type transformation rules (delegates to transformer) or JSON.stringify the result.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/registry.ts": {
+    "summary": "Generic identifier<->value registry built on DoubleIndexedKV.",
+    "inputs": "Values plus an identifier generator; optional explicit identifiers.",
+    "outputs": "Registry class with register, clear, getIdentifier, getValue.",
+    "should": "Assign generated or explicit identifiers, avoid duplicate registration, resolve both directions.",
+    "shouldNot": "Encode class- or symbol-specific policy (subclasses add that) or perform serialization.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/transformer.ts": {
+    "summary": "Defines the built-in and registry-backed transformation rules mapping special types to JSON and back.",
+    "inputs": "Values, TypeAnnotations, and a SuperJSON instance (for registries and allowed props).",
+    "outputs": "transformValue, untransformValue, isInstanceOfRegisteredClass, TypeAnnotation types.",
+    "should": "Detect and (de)serialize dates, bigints, sets, maps, errors, regexps, URLs, symbols, classes, typed arrays, custom types.",
+    "shouldNot": "Walk the object tree or manage paths/referential equality; operates on single values only.",
+    "side": "shared",
+    "pure": false
+  },
+  "src/types.ts": {
+    "summary": "Central TypeScript type definitions for SuperJSON's value, JSON, and result shapes.",
+    "inputs": "None (type-only module).",
+    "outputs": "Class, JSONValue, SuperJSONValue, SuperJSONResult and related interfaces/types.",
+    "should": "Declare the type contracts shared across modules.",
+    "shouldNot": "Contain runtime logic or executable code.",
+    "side": "shared",
+    "pure": true
+  },
+  "src/util.ts": {
+    "summary": "Small ES5-safe helper functions over records and arrays.",
+    "inputs": "Records/arrays and predicate or callback functions.",
+    "outputs": "find, forEach, includes, findArr.",
+    "should": "Provide iteration/search helpers with fallbacks for missing ES6 methods.",
+    "shouldNot": "Hold state or contain any SuperJSON domain logic.",
+    "side": "shared",
+    "pure": true
+  }
+}
