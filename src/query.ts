@@ -60,17 +60,3 @@ export function affects(files: Graph, id: string): string[] {
   return [...seen].sort();
 }
 
-// One lean line per file for search: id, side, and summary only. Deliberately
-// small — a keyword grep can match hundreds of lines, and carrying full
-// contracts here costs more context than reading the sources it replaces.
-// Full contract + neighbours come from `dagward query <file>`, one file at a time.
-export function renderAnnotationsIndex(files: Graph): string {
-  return (
-    files.nodes
-      .map((node) => {
-        const { side, summary } = node.annotation ?? {};
-        return [node.id, side ?? "", summary ?? ""].join("\t");
-      })
-      .join("\n") + "\n"
-  );
-}

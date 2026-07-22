@@ -16,25 +16,14 @@ describe("cli", () => {
     const code = main(["init", fixture, "--out", tmpDir]);
     expect(code).toBe(0);
 
+    // Only the compiler-produced graphs are stored; folder and unified graphs
+    // are projections, derived on read (see the viz test below).
     const written = fs.readdirSync(tmpDir).sort();
-    expect(written).toEqual([
-      "ARCHITECTURE.md",
-      "annotations.jsonl",
-      "graph.files.json",
-      "graph.folders.json",
-      "graph.functions.json",
-      "graph.unified.json",
-    ]);
+    expect(written).toEqual(["ARCHITECTURE.md", "graph.files.json", "graph.functions.json"]);
 
     const files = JSON.parse(fs.readFileSync(path.join(tmpDir, "graph.files.json"), "utf8"));
     expect(files.version).toBe(1);
     expect(files.level).toBe("file");
-
-    const unified = JSON.parse(fs.readFileSync(path.join(tmpDir, "graph.unified.json"), "utf8"));
-    expect(unified.level).toBe("unified");
-    // module nodes (file ids, no #) + function nodes (with #)
-    expect(unified.nodes.some((n: { id: string }) => n.id.includes("#"))).toBe(true);
-    expect(unified.nodes.some((n: { id: string }) => !n.id.includes("#"))).toBe(true);
   });
 
   it("returns 2 for a directory without a tsconfig", () => {
@@ -172,6 +161,11 @@ describe("cli", () => {
       const html = fs.readFileSync(path.join(dir, "viz.html"), "utf8");
       expect(html).toContain("application/json");
       expect(html).toContain("src/a.ts");
+      // folders + unified are derived at viz time, not read from disk: the
+      // page still gets unified nodes (function ids carry "#") and the
+      // per-level cycle data the renderer needs.
+      expect(html).toContain("trueCycles");
+      expect(html).toMatch(/src\/a\.ts#/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

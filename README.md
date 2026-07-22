@@ -17,10 +17,12 @@ Requirements: Node.js ≥ 20 and a TypeScript project with a `tsconfig.json`.
 
 ## What you get
 
-**`dagward init`** analyzes your repo with the TypeScript compiler (real module resolution: `paths`, index files, conditional exports) and writes four files to `dagward-out/`:
+**`dagward init`** analyzes your repo with the TypeScript compiler (real module resolution: `paths`, index files, conditional exports) and writes three files to `dagward-out/`:
 
-- `graph.folders.json`, `graph.files.json`, `graph.functions.json` — your dependency graph at three levels, with cycles detected at each.
+- `graph.files.json`, `graph.functions.json` — your dependency graph, with cycles detected at each level. Folder- and unified-level views are projections of these, derived when needed rather than stored, so they can never disagree with the graph they came from.
 - `ARCHITECTURE.md` — a ~2k-token snapshot of the system as it actually is: layers, cycles, hub files, suspicious edges.
+
+Annotations live on the graph nodes themselves (`annotation`), not in a sidecar file, and survive regeneration.
 
 **`dagward viz`** renders those graphs to one self-contained `viz.html` (offline, no CDN):
 

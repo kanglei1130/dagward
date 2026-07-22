@@ -11,7 +11,7 @@ import { buildFunctionGraph } from "./functionGraph.js";
 import { carryAnnotations, serializeGraph, type Graph } from "./graph.js";
 import { ConfigError, loadProject } from "./project.js";
 import { renderArchitectureMd } from "./report.js";
-import { affects, queryNode, renderAnnotationsIndex } from "./query.js";
+import { affects, queryNode } from "./query.js";
 import { loadRuleSet } from "./rules.js";
 import { buildUnifiedGraph } from "./unifiedGraph.js";
 import { findUnusedImports } from "./unusedImports.js";
@@ -33,10 +33,10 @@ Options:
   --help             Show this help
   --version          Show version
 
-Outputs: graph.{folders,files,functions,unified}.json, annotations.jsonl, ARCHITECTURE.md
+Outputs: graph.files.json, graph.functions.json, ARCHITECTURE.md
+(folder and unified graphs are projections — derived on read, never stored)
 
 query/affects read dagward-out and print JSON — no source reads, no re-analysis.
-For a grep-only lookup: grep '"id":"src/foo.ts"' dagward-out/annotations.jsonl
 
 Exit codes: 0 ok, 1 rule violations (check), 2 config error.`;
 
@@ -173,13 +173,11 @@ export function main(argv: string[]): number {
     // writeGraph carries preserved annotations onto each graph in place, so
     // build the unified graph AFTER files/folders are annotated — else its
     // module nodes copy the un-annotated file nodes.
-    writeGraph(path.join(outDir, "graph.folders.json"), folders);
+    // Only the two graphs the compiler produces are persisted. Folder and
+    // unified graphs are projections of these — derived on read (see runViz),
+    // never stored, so they cannot drift from their source.
     writeGraph(path.join(outDir, "graph.files.json"), files);
     writeGraph(path.join(outDir, "graph.functions.json"), functions);
-    writeGraph(path.join(outDir, "graph.unified.json"), buildUnifiedGraph(files, functions));
-    // Grep-able one-line-per-file contracts: a lookup costs one grep, not a
-    // parse of the whole file graph.
-    fs.writeFileSync(path.join(outDir, "annotations.jsonl"), renderAnnotationsIndex(files));
     fs.writeFileSync(
       path.join(outDir, "ARCHITECTURE.md"),
       renderArchitectureMd({
@@ -202,7 +200,7 @@ export function main(argv: string[]): number {
   if (unusedImports.length > 0) {
     console.error(`  ${unusedImports.length} unused import(s) — see ARCHITECTURE.md`);
   }
-  console.error(`Wrote 6 files to ${outDir}`);
+  console.error(`Wrote 3 files to ${outDir}`);
 
   const rulesPath = path.join(targetDir, "dagward.yml");
   if (!fs.existsSync(rulesPath)) {
@@ -292,22 +290,23 @@ function writeGraph(file: string, graph: Graph): void {
 }
 
 function runViz(outDir: string, noOpen: boolean): number {
-  const graphs = {} as VizInput;
-  const wanted: [keyof VizInput, string][] = [
-    ["folders", "graph.folders.json"],
-    ["files", "graph.files.json"],
-    ["functions", "graph.functions.json"],
-    ["unified", "graph.unified.json"],
-  ];
-  for (const [key, name] of wanted) {
-    const file = path.join(outDir, name);
+  const stored = {} as { files: Graph; functions: Graph };
+  for (const level of ["files", "functions"] as const) {
+    const file = path.join(outDir, `graph.${level}.json`);
     try {
-      graphs[key] = JSON.parse(fs.readFileSync(file, "utf8")) as Graph;
+      stored[level] = JSON.parse(fs.readFileSync(file, "utf8")) as Graph;
     } catch {
       console.error(`Cannot read ${file}. Run \`dagward init\` first.`);
       return 2;
     }
   }
+  // Projections, rebuilt from the stored graphs rather than read from disk.
+  const graphs: VizInput = {
+    files: stored.files,
+    functions: stored.functions,
+    folders: buildFolderGraph(stored.files),
+    unified: buildUnifiedGraph(stored.files, stored.functions),
+  };
   const htmlPath = path.join(outDir, "viz.html");
   timed("write viz.html", () => fs.writeFileSync(htmlPath, renderVizHtml(graphs)));
   console.error(`Wrote ${htmlPath}`);

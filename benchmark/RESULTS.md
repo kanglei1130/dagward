@@ -7,6 +7,11 @@ usage and wall-clock time recorded from the harness.
 **Repo:** hihome — 407 graph nodes, all annotated (summary/inputs/outputs/should/shouldNot/side/pure),
 0 file/folder cycles.
 
+> **Historical note.** These runs used a lean `annotations.jsonl` index that dagward no longer emits —
+> annotations now live only on the graph nodes, and per-file lookup is `dagward query <file>`. The
+> numbers below are left as measured; the keyword-grep path they describe is gone, which affects only
+> the ~9% of input savings attributed to annotations (see *Attribution* — the graph carried ~90%).
+
 ## The two conditions — the graph as a cache
 
 Each task is run twice:

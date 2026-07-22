@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Graph } from "../src/graph.js";
-import { affects, queryNode, renderAnnotationsIndex } from "../src/query.js";
+import { affects, queryNode } from "../src/query.js";
 
 const files: Graph = {
   version: 1,
@@ -60,18 +60,3 @@ describe("affects", () => {
   });
 });
 
-describe("renderAnnotationsIndex", () => {
-  it("emits one lean greppable line per file: id, side, summary", () => {
-    const lines = renderAnnotationsIndex(files).trim().split("\n");
-    expect(lines).toHaveLength(files.nodes.length);
-    expect(lines[0]).toBe("src/a.ts\tbackend\tentry");
-    expect(lines[1]).toBe("src/b.ts\t\t"); // unannotated files still get a row
-  });
-
-  // A keyword grep can match most of the file; fat lines would cost more
-  // context than the sources the index replaces.
-  it("keeps lines small enough for keyword search", () => {
-    const longest = Math.max(...renderAnnotationsIndex(files).trim().split("\n").map((l) => l.length));
-    expect(longest).toBeLessThan(200);
-  });
-});

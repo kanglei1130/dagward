@@ -77,4 +77,13 @@ This repo dogfoods its own tool. The dependency graph is part of the code review
   code that violates a file's `shouldNot`; update the annotation when a
   responsibility legitimately changes. Renaming a file drops its annotation
   (preservation is by node id) — re-attach it after moves.
+- `dagward-out/` holds exactly three files: `graph.files.json`,
+  `graph.functions.json`, `ARCHITECTURE.md`. Don't add a fourth.
+  - Annotations belong on graph nodes, never in a sidecar index file.
+  - Folder and unified graphs are **projections** — derive them on read with
+    `buildFolderGraph(files)` / `buildUnifiedGraph(files, functions)`
+    (see `runViz`), never persist them.
+  - One source of truth: a stored projection can drift from the graph it came
+    from, and every extra artifact is more bytes an agent must read. If a new
+    view is needed, derive it; don't write it.
 - Tooling: `npm run build` (tsc + viz-assets copy), `npm test` (vitest), Node ≥ 20.
