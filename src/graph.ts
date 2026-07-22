@@ -3,13 +3,11 @@ export type EdgeKind = "value" | "type" | "dynamic" | "call" | "reference";
 export type GraphLevel = "folder" | "file" | "function" | "unified";
 
 // AI- or human-written enrichment. Dagward never generates these; it only
-// preserves them across regenerations (see carryAnnotations).
+// preserves them across regenerations (see carryAnnotations). One prose
+// `summary` plus two typed flags — `side` powers the search index and viz
+// lanes, `pure` feeds enforcement — kept structured where prose can't serve.
 export interface NodeAnnotation {
   summary?: string;
-  inputs?: string;
-  outputs?: string;
-  should?: string;
-  shouldNot?: string;
   side?: "frontend" | "backend" | "shared" | "tooling";
   pure?: boolean;
 }

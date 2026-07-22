@@ -768,10 +768,6 @@
           : "") +
       `</div>`,
     );
-    if (a?.inputs) rows.push(`<div class="drow"><div class="dlabel">Inputs</div><div class="dval">${escapeHtml(a.inputs)}</div></div>`);
-    if (a?.outputs) rows.push(`<div class="drow"><div class="dlabel">Outputs</div><div class="dval">${escapeHtml(a.outputs)}</div></div>`);
-    if (a?.should) rows.push(`<div class="drow"><div class="dlabel">Should</div><div class="dval">${escapeHtml(a.should)}</div></div>`);
-    if (a?.shouldNot) rows.push(`<div class="drow"><div class="dlabel">Should not</div><div class="dval no">${escapeHtml(a.shouldNot)}</div></div>`);
     if (!a) rows.push(`<div class="drow"><div class="dval">No annotation for this node.</div></div>`);
     el.innerHTML = `<div class="dpath">${escapeHtml(n.id)}</div>` + rows.join("");
     section.style.display = "";

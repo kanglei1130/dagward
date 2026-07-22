@@ -27,7 +27,7 @@ Every requirement in this document serves one stage of a single loop:
 > **Generate** — an AI agent reads the graph + contract + rules as context and
 > writes code that conforms.
 > **Enforce** — dagward checks the change deterministically: no new cycles, no
-> boundary or `shouldNot` violations, cone stays small.
+> boundary violations, cone stays small.
 > **Maintain** — contracts are preserved across edits and moves; drift is flagged.
 > → back to Define.
 
@@ -90,8 +90,8 @@ output.
 ### A. Annotation authoring (the IDE surface)
 
 - **A1** — In-editor panel to view and edit a node's contract: the existing
-  `NodeAnnotation` fields (`summary`, `inputs`, `outputs`, `should`,
-  `shouldNot`, `side`, `pure`), with schema validation on enums and shape.
+  `NodeAnnotation` fields (`summary`, `side`, `pure`), with schema validation
+  on enums and shape.
 - **A2** — Gutter / codelens on every file (and function) showing at a glance:
   has-annotation?, `side`, `pure`, and stale?. One click opens the panel.
 - **A3** — AI-assisted draft, human-approved. The agent proposes an annotation

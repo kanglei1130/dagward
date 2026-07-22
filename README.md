@@ -28,7 +28,7 @@ Requirements: Node.js ≥ 20 and a TypeScript project with a `tsconfig.json`.
 - Frontend / shared·pure / backend lanes, folder drill-down (start aggregated, click to expand), search, and per-node detail panels.
 - Real cycles in red; type-only imports dashed.
 
-**Annotations.** Any graph node can carry an `annotation`: `summary`, `inputs`, `outputs`, `should`, `shouldNot`, `side`, `pure`. Humans or an AI pass write them; dagward never invents them, but preserves them by node id across every regeneration. They turn each file into a ~126-token contract an agent can obey without reading the source.
+**Annotations.** Any graph node can carry an `annotation`: a prose `summary` plus two typed flags, `side` and `pure`. Humans or an AI pass write them; dagward never invents them, but preserves them by node id across every regeneration. They turn each file into a compact contract an agent can obey without reading the source.
 
 ## Why: the token economics
 

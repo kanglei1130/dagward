@@ -73,8 +73,9 @@ This repo dogfoods its own tool. The dependency graph is part of the code review
 - Keep the module order one-way:
   `cli → viz/report → analyzers (fileGraph, folderGraph, functionGraph) → project → graph`.
   `report.ts` and `viz.ts` consume `Graph` data only — never the compiler API.
-- Node annotations (`annotation` on graph nodes) are contracts: don't write
-  code that violates a file's `shouldNot`; update the annotation when a
-  responsibility legitimately changes. Renaming a file drops its annotation
-  (preservation is by node id) — re-attach it after moves.
+- Node annotations (`annotation` on graph nodes) are contracts (`summary`,
+  `side`, `pure`): don't write code that contradicts a file's `summary` or its
+  `side`/`pure` flags; update the annotation when a responsibility legitimately
+  changes. Renaming a file drops its annotation (preservation is by node id) —
+  re-attach it after moves.
 - Tooling: `npm run build` (tsc + viz-assets copy), `npm test` (vitest), Node ≥ 20.
