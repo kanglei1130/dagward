@@ -116,6 +116,32 @@ prompt shrinks the task rather than hardening the locate phase (control got
 cheaper too), so it can't isolate the effect. Details in
 `eval/deepswe/EXP2-RESULTS.md`.
 
+## Scaling the bug-fix result: 10 fixes on large repos (SWE10)
+
+The −16% above was N=1. To test it, we git-mined **10 real bug fixes** across
+three **300+ file** repos — dynamodb-toolbox (697), happy-dom (580),
+obsidian-linter (206) — control vs v3, each **graded by running the repo's own
+test** (base fails, fixed passes; gold fix scrubbed so the agent can't read it).
+
+| | Total tokens | Mean Δtok | Cheaper on | Reward |
+|---|--:|--:|--:|:--:|
+| control | 390.7k | — | — | **10/10** |
+| **v3 (dagward)** | **369.0k (−5.6%)** | **−3.8%** (median −6.5%) | **8/10** | **10/10** |
+
+The lean is real but noisy, driven by two poles: **hd-Node −31.5%** (the hardest
+bug — control took a wrong path and spent 23 calls/417s; v3's `annotate`/`importers`
+bounded the blast radius and it fixed cleanly in 12 calls/103s) and **obs-title
++65.7%** (v3's `conedoc` nudged the agent toward a heavier new-helper fix). The
+other 8 average ≈ −9%. Solve rate is identical (10/10) — dagward's value here is
+**efficiency, not capability**.
+
+**Honest limit:** where a failing-test **stack trace already names the file**,
+dagward's locate value is redundant and the saving collapses toward zero
+(ddb-cloneDeep +1.8%, ddb-doesValidate −0.4%). The wins concentrate on bugs with a
+*diffuse* trace or heavy neighbor-comprehension. So the large-repo bug-fix average
+is **−4% to −9%**, not −16% — the N=1 was the high end. Full detail + per-case
+table: `eval/deepswe/SWE10-RESULTS.md`; raw data: `swe10-tokens.tsv`.
+
 ## Cost caveat (amortization)
 
 These per-task numbers assume the graph + annotations already exist. The graph
@@ -150,7 +176,9 @@ positive = dagward cheaper / faster; negative = dagward costs more.
 | **Structural query** — "what is the architecture / cone" (deterministic, no agent) | **95–99.5%** (17–200×) | sub-second | Layer-2 |
 | **Change-impact** — "what breaks if I change X" | **≈85%** in / 97% out | **≈95%** | hihome |
 | **Architecture comprehension** — "how is this laid out" | **≈52%** in / 64% out | **≈63%** | hihome |
-| **Bug fix** — locate + comprehend + small edit | **≈16%** | **≈28%** | DeepSWE happy-dom (N=1) |
+| **Bug fix (diffuse trace)** — locate across repo + comprehend + edit | **≈16–31%** | **≈28–75%** | happy-dom, hd-Node |
+| **Bug fix (avg, large repos)** — 10 cases, 200–697 files | **≈4–9%** (8/10 cheaper) | ≈mixed | SWE10 (N=10, verified) |
+| **Bug fix (stack trace names file)** — locate is already free | **≈0%** | ≈0% | SWE10 ddb-cloneDeep |
 | **Feature implementation** — write new code at a known seam | **≈0%** (neutral) | **≈−12%** (slower) | DeepSWE N=12 |
 | **Trivial single-edge check** — "does A already import B" | **−67%** (over-answers) | ≈0% | hihome diff-review |
 
@@ -158,9 +186,11 @@ Reading the gradient:
 - **Top rows (analytical / locate-bound): dagward's home turf** — the graph has
   *already answered* the question, so a lookup replaces a hand-trace. Savings are
   large on every axis.
-- **Bug fix: the strong agentic case** — the agent must locate across the repo;
-  dagward's `affects`/`annotate` cut the search, and contracts replace reading
-  dependency source (−16% tokens, −27% tool-calls, and a tighter fix).
+- **Bug fix: the strongest agentic case** — the agent must locate across the repo;
+  dagward's `affects`/`annotate` cut the search and contracts replace reading
+  dependency source. Verified over **10 large-repo fixes** (SWE10): −5.6% total
+  tokens, cheaper on 8/10, same 10/10 solve rate — biggest where the trace is
+  diffuse (hd-Node −31%), ~zero where the trace already names the file.
 - **Feature implementation: neutral** — writing new code dominates the budget and
   isn't compressible; the small find/understand slice is often pre-named by the
   prompt. Time can go slightly negative from the `gq`/`init`/cycle-gate overhead.

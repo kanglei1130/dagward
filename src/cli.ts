@@ -10,6 +10,7 @@ import { buildFolderGraph } from "./folderGraph.js";
 import { buildFunctionGraph } from "./functionGraph.js";
 import { carryAnnotations, serializeGraph, type Graph } from "./graph.js";
 import { ConfigError, loadProject } from "./project.js";
+import { buildPythonFileGraph, hasPyFiles } from "./pythonFileGraph.js";
 import { renderArchitectureMd } from "./report.js";
 import { affects, queryNode } from "./query.js";
 import { loadRuleSet } from "./rules.js";
@@ -17,7 +18,7 @@ import { buildUnifiedGraph } from "./unifiedGraph.js";
 import { findUnusedImports } from "./unusedImports.js";
 import { renderVizHtml, type VizInput } from "./viz.js";
 
-const HELP = `dagward — multi-level dependency graphs for TypeScript projects
+const HELP = `dagward — multi-level dependency graphs for TypeScript & Python projects
 
 Usage:
   dagward init    [dir] [options]   Analyze the project, write graphs + report (dir defaults to .)
@@ -36,6 +37,9 @@ Options:
 
 Outputs: graph.files.json, ARCHITECTURE.md (+ graph.functions.json with --functions)
 (folder and unified graphs are projections — derived on read, never stored)
+
+Language: TypeScript (needs tsconfig.json) or Python (pyproject.toml/setup.py/.py).
+Python is file-graph only — folder/file cycles + rules apply; no function graph.
 
 query/affects read dagward-out and print JSON — no source reads, no re-analysis.
 
@@ -146,33 +150,49 @@ export function main(argv: string[]): number {
   }
 
   console.error(`[${new Date().toISOString()}] Initializing dagward in ${targetDir}`);
-  let project;
-  try {
-    project = timed(
-      (p) => `load project (${p.sourceFiles.length} files, tsconfig at ${p.rootDir})`,
-      () => loadProject(targetDir, values.project ? path.resolve(values.project) : undefined),
-    );
-  } catch (error) {
-    if (error instanceof ConfigError) {
-      console.error(`Config error: ${error.message}`);
-      return 2;
-    }
-    throw error;
-  }
 
-  const { graph: files, skippedDynamicImports } = timed("file graph", () =>
-    buildFileGraph(project),
-  );
+  let files: Graph;
+  let skippedDynamicImports: number;
+  // Python is file-graph only (dynamic dispatch makes a call graph low-fidelity),
+  // so it has no function graph and no compiler-based unused-import diagnostics.
+  let functions: Graph | undefined;
+  let unusedImports: ReturnType<typeof findUnusedImports> = [];
+
+  if (isPythonProject(targetDir, values.project)) {
+    const py = timed(
+      (r) => `python file graph (${r.graph.nodes.length} files)`,
+      () => buildPythonFileGraph(targetDir),
+    );
+    files = py.graph;
+    skippedDynamicImports = py.skippedDynamicImports;
+  } else {
+    let project;
+    try {
+      project = timed(
+        (p) => `load project (${p.sourceFiles.length} files, tsconfig at ${p.rootDir})`,
+        () => loadProject(targetDir, values.project ? path.resolve(values.project) : undefined),
+      );
+    } catch (error) {
+      if (error instanceof ConfigError) {
+        console.error(`Config error: ${error.message}`);
+        return 2;
+      }
+      throw error;
+    }
+    const fileGraph = timed("file graph", () => buildFileGraph(project));
+    files = fileGraph.graph;
+    skippedDynamicImports = fileGraph.skippedDynamicImports;
+    // Opt-in: the function level needs the type checker (~20% of runtime) and
+    // roughly doubles the output, while rules and queries work at file level.
+    functions = values.functions
+      ? timed("function graph", () => buildFunctionGraph(project))
+      : undefined;
+    unusedImports = timed(
+      (u) => `unused imports (${u.length})`,
+      () => findUnusedImports(project),
+    );
+  }
   const folders = timed("folder graph", () => buildFolderGraph(files));
-  // Opt-in: the function level needs the type checker (~20% of runtime) and
-  // roughly doubles the output, while rules and queries work at file level.
-  const functions = values.functions
-    ? timed("function graph", () => buildFunctionGraph(project))
-    : undefined;
-  const unusedImports = timed(
-    (u) => `unused imports (${u.length})`,
-    () => findUnusedImports(project),
-  );
 
   timed("write outputs", () => {
     fs.mkdirSync(outDir, { recursive: true });
@@ -216,16 +236,31 @@ export function main(argv: string[]): number {
   return 0;
 }
 
+// A project is Python when there's no tsconfig to drive the TS backend but
+// there is a Python marker or .py sources. An explicit --project always means TS.
+function isPythonProject(targetDir: string, projectOverride: string | undefined): boolean {
+  if (projectOverride) return false;
+  if (fs.existsSync(path.join(targetDir, "tsconfig.json"))) return false;
+  const markers = ["pyproject.toml", "setup.py", "setup.cfg"];
+  if (markers.some((m) => fs.existsSync(path.join(targetDir, m)))) return true;
+  return hasPyFiles(targetDir);
+}
+
 // One output format for everyone — humans, agents, CI: violations as JSON on
 // stdout, diagnostics on stderr, the verdict in the exit code.
 function runCheck(targetDir: string, projectOverride: string | undefined): number {
   try {
     const ruleSet = loadRuleSet(path.join(targetDir, "dagward.yml"));
-    const project = timed(
-      (p) => `load project (${p.sourceFiles.length} files, tsconfig at ${p.rootDir})`,
-      () => loadProject(targetDir, projectOverride),
+    const python = isPythonProject(targetDir, projectOverride);
+    const project = python
+      ? undefined
+      : timed(
+          (p) => `load project (${p.sourceFiles.length} files, tsconfig at ${p.rootDir})`,
+          () => loadProject(targetDir, projectOverride),
+        );
+    const { graph: files } = timed("file graph", () =>
+      project ? buildFileGraph(project) : buildPythonFileGraph(targetDir),
     );
-    const { graph: files } = timed("file graph", () => buildFileGraph(project));
     const folders = timed("folder graph", () => buildFolderGraph(files));
     const { violations, unusedExemptions, deadPatterns } = evaluate(ruleSet, { folders, files });
     for (const { where, pattern } of deadPatterns) {
@@ -234,8 +269,10 @@ function runCheck(targetDir: string, projectOverride: string | undefined): numbe
     for (const ex of unusedExemptions) {
       console.error(`Warning: unused exemption (rule "${ex.rule}", from "${ex.from}", to "${ex.to}")`);
     }
-    for (const u of findUnusedImports(project)) {
-      console.error(`Warning: unused import at ${u.file}:${u.line} — "${u.specifier}"`);
+    if (project) {
+      for (const u of findUnusedImports(project)) {
+        console.error(`Warning: unused import at ${u.file}:${u.line} — "${u.specifier}"`);
+      }
     }
     console.log(JSON.stringify({ violations }, null, 2));
     console.error(
