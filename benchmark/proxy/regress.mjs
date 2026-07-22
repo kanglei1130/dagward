@@ -23,17 +23,22 @@ const xKey = xi === -1 ? "forwardCone" : args[xi + 1];
 const positional = args.filter((a, i) => xi === -1 || (i !== xi && i !== xi + 1));
 const resultsPath = positional[0] ?? path.join(here, "proxy-results.json");
 
+// Parse cones.csv generically: every column after `file` is an available
+// predictor, so --x can name any of forwardCone/reverseCone/coneLoc/coneBytes/estTokens.
+const csvLines = fs.readFileSync(path.join(here, "cones.csv"), "utf8").trim().split("\n");
+const header = csvLines[0].split(",");
 const cones = new Map(
-  fs
-    .readFileSync(path.join(here, "cones.csv"), "utf8")
-    .trim()
-    .split("\n")
-    .slice(1)
-    .map((line) => {
-      const [file, forwardCone, reverseCone] = line.split(",");
-      return [file, { forwardCone: Number(forwardCone), reverseCone: Number(reverseCone) }];
-    }),
+  csvLines.slice(1).map((line) => {
+    const cells = line.split(",");
+    const row = {};
+    header.forEach((col, i) => (row[col] = col === "file" ? cells[i] : Number(cells[i])));
+    return [row.file, row];
+  }),
 );
+if (!header.includes(xKey)) {
+  console.error(`unknown predictor --x ${xKey}; cones.csv has: ${header.slice(1).join(", ")}`);
+  process.exit(2);
+}
 
 const results = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
 if (results.synthetic) console.log("!! SAMPLE DATA (synthetic) — replace proxy-results.json with real A/B runs before trusting any number below.\n");

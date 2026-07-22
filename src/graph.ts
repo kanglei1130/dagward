@@ -19,6 +19,8 @@ export interface GraphNode {
   file?: string;
   line?: number;
   fileCount?: number;
+  loc?: number;
+  bytes?: number;
   annotation?: NodeAnnotation;
 }
 

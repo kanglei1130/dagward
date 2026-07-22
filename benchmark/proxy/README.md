@@ -16,12 +16,17 @@ dagward init .                       # writes dagward-out/graph.files.json
 node benchmark/proxy/cone.mjs dagward-out --select 15
 ```
 
-- `cones.csv` — every file with its **forwardCone** (transitive imports: what you
-  must read to change it) and **reverseCone** (`dagward affects`: what breaks if
-  it changes). `reverseCone` reuses dagward's shipped `affects`, so it equals
-  `dagward affects <file>` exactly.
-- `candidates.json` — ~15 files stratified across the cone distribution
-  (small → large), so the regression covers the whole range instead of clustering.
+- `cones.csv` — every file with, per column:
+  - **forwardCone** — transitive imports (how many files enter context to change it).
+  - **reverseCone** — `dagward affects` (what breaks if it changes); reuses the
+    shipped `affects`, so it equals `dagward affects <file>` exactly.
+  - **loc / bytes** — the file's own size, from the node fields dagward records.
+  - **coneLoc / coneBytes** — size summed over the file *and its forward cone*.
+  - **estTokens** — `coneBytes / 3.7`: the estimated tokens to read the file plus
+    everything it depends on. Cone says *which* files; loc/bytes say *how big*.
+    This is the sharpest single predictor and the harness's headline proxy.
+- `candidates.json` — ~15 files stratified across the **estTokens** range
+  (cheap → expensive), so the regression covers the whole span, not a cluster.
 
 Run this against a **real target repo** (e.g. hihome, 407 files). dagward's own
 14-file graph works for smoke-testing the plumbing but is too small to regress on.
@@ -49,9 +54,13 @@ includes cache reads. Grade `correct` per run — a cheaper wrong answer is not 
 ## Half 3 — the verdict
 
 ```
-node benchmark/proxy/regress.mjs proxy-results.json          # x = forwardCone
-node benchmark/proxy/regress.mjs proxy-results.json --x reverseCone
+node benchmark/proxy/regress.mjs proxy-results.json              # x = forwardCone
+node benchmark/proxy/regress.mjs proxy-results.json --x estTokens
 ```
+
+`--x` accepts any cones.csv column: `forwardCone`, `reverseCone`, `coneLoc`,
+`coneBytes`, or `estTokens`. Try each — the one with the highest baseline r is
+your best proxy (expect `estTokens`, since it weights the cone by real file size).
 
 Joins cone size (x) to input tokens (y) and reports, **per condition**, Pearson r,
 R², Spearman rho, and the least-squares line `tokens ≈ a + b·cone`.

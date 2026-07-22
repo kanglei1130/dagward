@@ -53,4 +53,13 @@ describe("buildFileGraph", () => {
     const edge = graph.edges.find((e) => e.to === "src/b/index.ts");
     expect(edge?.line).toBe(1);
   });
+
+  it("records loc and byte size on each file node", () => {
+    const { graph } = buildFileGraph(loadProject(fixture("simple")));
+    for (const node of graph.nodes) {
+      expect(node.loc).toBeGreaterThan(0);
+      expect(node.bytes).toBeGreaterThan(0);
+    }
+    expect(graph.nodes.find((n) => n.id === "src/b/c.ts")?.bytes).toBe(46);
+  });
 });

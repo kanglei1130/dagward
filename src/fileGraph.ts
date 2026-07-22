@@ -105,7 +105,13 @@ export function buildFileGraph(project: Project): FileGraphResult {
     }
   }
 
-  const nodes = sourceFiles.map((sf) => ({ id: relativeId(rootDir, sf.fileName) }));
+  // loc/bytes are computed size metrics (a token-cost proxy), recomputed every
+  // run — hence node fields, not annotations (which are authored and preserved).
+  const nodes = sourceFiles.map((sf) => ({
+    id: relativeId(rootDir, sf.fileName),
+    loc: sf.getLineStarts().length,
+    bytes: Buffer.byteLength(sf.text, "utf8"),
+  }));
   return {
     graph: buildGraph("file", rootDir, nodes, [...merged.values()]),
     skippedDynamicImports,
