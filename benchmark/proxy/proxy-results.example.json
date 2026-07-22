@@ -1,0 +1,230 @@
+{
+  "synthetic": true,
+  "note": "Illustrative numbers to demo the pipeline. NOT measured. Replace with real A/B runs.",
+  "runs": [
+    {
+      "file": "src/glob.ts",
+      "cond": "baseline",
+      "input": 8240,
+      "output": 247,
+      "ms": 32960,
+      "correct": true
+    },
+    {
+      "file": "src/glob.ts",
+      "cond": "dagward",
+      "input": 12610,
+      "output": 252,
+      "ms": 37830,
+      "correct": true
+    },
+    {
+      "file": "src/project.ts",
+      "cond": "baseline",
+      "input": 7520,
+      "output": 226,
+      "ms": 30080,
+      "correct": true
+    },
+    {
+      "file": "src/project.ts",
+      "cond": "dagward",
+      "input": 16280,
+      "output": 326,
+      "ms": 48840,
+      "correct": true
+    },
+    {
+      "file": "src/graph.ts",
+      "cond": "baseline",
+      "input": 8640,
+      "output": 259,
+      "ms": 34560,
+      "correct": true
+    },
+    {
+      "file": "src/graph.ts",
+      "cond": "dagward",
+      "input": 16960,
+      "output": 339,
+      "ms": 50880,
+      "correct": true
+    },
+    {
+      "file": "src/folderGraph.ts",
+      "cond": "baseline",
+      "input": 19400,
+      "output": 582,
+      "ms": 77600,
+      "correct": true
+    },
+    {
+      "file": "src/folderGraph.ts",
+      "cond": "dagward",
+      "input": 15038,
+      "output": 301,
+      "ms": 45114,
+      "correct": true
+    },
+    {
+      "file": "src/query.ts",
+      "cond": "baseline",
+      "input": 22200,
+      "output": 666,
+      "ms": 88800,
+      "correct": true
+    },
+    {
+      "file": "src/query.ts",
+      "cond": "dagward",
+      "input": 15494,
+      "output": 310,
+      "ms": 46482,
+      "correct": true
+    },
+    {
+      "file": "src/unifiedGraph.ts",
+      "cond": "baseline",
+      "input": 18000,
+      "output": 540,
+      "ms": 72000,
+      "correct": true
+    },
+    {
+      "file": "src/unifiedGraph.ts",
+      "cond": "dagward",
+      "input": 21060,
+      "output": 421,
+      "ms": 63180,
+      "correct": true
+    },
+    {
+      "file": "src/viz.ts",
+      "cond": "baseline",
+      "input": 21000,
+      "output": 630,
+      "ms": 84000,
+      "correct": true
+    },
+    {
+      "file": "src/viz.ts",
+      "cond": "dagward",
+      "input": 13870,
+      "output": 277,
+      "ms": 41610,
+      "correct": true
+    },
+    {
+      "file": "src/rules.ts",
+      "cond": "baseline",
+      "input": 19800,
+      "output": 594,
+      "ms": 79200,
+      "correct": true
+    },
+    {
+      "file": "src/rules.ts",
+      "cond": "dagward",
+      "input": 17246,
+      "output": 345,
+      "ms": 51738,
+      "correct": true
+    },
+    {
+      "file": "src/unusedImports.ts",
+      "cond": "baseline",
+      "input": 22800,
+      "output": 684,
+      "ms": 91200,
+      "correct": true
+    },
+    {
+      "file": "src/unusedImports.ts",
+      "cond": "dagward",
+      "input": 17556,
+      "output": 351,
+      "ms": 52668,
+      "correct": true
+    },
+    {
+      "file": "src/fileGraph.ts",
+      "cond": "baseline",
+      "input": 29440,
+      "output": 883,
+      "ms": 117760,
+      "correct": true
+    },
+    {
+      "file": "src/fileGraph.ts",
+      "cond": "dagward",
+      "input": 17496,
+      "output": 350,
+      "ms": 52488,
+      "correct": true
+    },
+    {
+      "file": "src/functionGraph.ts",
+      "cond": "baseline",
+      "input": 33920,
+      "output": 1018,
+      "ms": 135680,
+      "correct": true
+    },
+    {
+      "file": "src/functionGraph.ts",
+      "cond": "dagward",
+      "input": 17728,
+      "output": 355,
+      "ms": 53184,
+      "correct": true
+    },
+    {
+      "file": "src/report.ts",
+      "cond": "baseline",
+      "input": 42240,
+      "output": 1267,
+      "ms": 168960,
+      "correct": true
+    },
+    {
+      "file": "src/report.ts",
+      "cond": "dagward",
+      "input": 23512,
+      "output": 470,
+      "ms": 70536,
+      "correct": true
+    },
+    {
+      "file": "src/check.ts",
+      "cond": "baseline",
+      "input": 61600,
+      "output": 1848,
+      "ms": 246400,
+      "correct": true
+    },
+    {
+      "file": "src/check.ts",
+      "cond": "dagward",
+      "input": 17460,
+      "output": 349,
+      "ms": 52380,
+      "correct": true
+    },
+    {
+      "file": "src/cli.ts",
+      "cond": "baseline",
+      "input": 155800,
+      "output": 4674,
+      "ms": 623200,
+      "correct": true
+    },
+    {
+      "file": "src/cli.ts",
+      "cond": "dagward",
+      "input": 37990,
+      "output": 760,
+      "ms": 113970,
+      "correct": true
+    }
+  ]
+}
