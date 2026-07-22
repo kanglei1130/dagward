@@ -30,10 +30,11 @@ Options:
   --project <path>   Explicit tsconfig.json (default: nearest to [dir])
   --out <dir>        Output directory (default: <dir>/dagward-out, or ./dagward-out for queries)
   --no-open          viz: do not open viz.html in the browser
+  --functions        init: also build the function-level graph (slower, ~2x output)
   --help             Show this help
   --version          Show version
 
-Outputs: graph.files.json, graph.functions.json, ARCHITECTURE.md
+Outputs: graph.files.json, ARCHITECTURE.md (+ graph.functions.json with --functions)
 (folder and unified graphs are projections — derived on read, never stored)
 
 query/affects read dagward-out and print JSON — no source reads, no re-analysis.
@@ -105,6 +106,7 @@ export function main(argv: string[]): number {
       project: { type: "string" },
       out: { type: "string" },
       "no-open": { type: "boolean" },
+      functions: { type: "boolean" },
       help: { type: "boolean" },
       version: { type: "boolean" },
     },
@@ -162,7 +164,11 @@ export function main(argv: string[]): number {
     buildFileGraph(project),
   );
   const folders = timed("folder graph", () => buildFolderGraph(files));
-  const functions = timed("function graph", () => buildFunctionGraph(project));
+  // Opt-in: the function level needs the type checker (~20% of runtime) and
+  // roughly doubles the output, while rules and queries work at file level.
+  const functions = values.functions
+    ? timed("function graph", () => buildFunctionGraph(project))
+    : undefined;
   const unusedImports = timed(
     (u) => `unused imports (${u.length})`,
     () => findUnusedImports(project),
@@ -173,11 +179,11 @@ export function main(argv: string[]): number {
     // writeGraph carries preserved annotations onto each graph in place, so
     // build the unified graph AFTER files/folders are annotated — else its
     // module nodes copy the un-annotated file nodes.
-    // Only the two graphs the compiler produces are persisted. Folder and
-    // unified graphs are projections of these — derived on read (see runViz),
-    // never stored, so they cannot drift from their source.
+    // Only compiler-produced graphs are persisted. Folder and unified graphs
+    // are projections of these — derived on read (see runViz), never stored,
+    // so they cannot drift from their source.
     writeGraph(path.join(outDir, "graph.files.json"), files);
-    writeGraph(path.join(outDir, "graph.functions.json"), functions);
+    if (functions) writeGraph(path.join(outDir, "graph.functions.json"), functions);
     fs.writeFileSync(
       path.join(outDir, "ARCHITECTURE.md"),
       renderArchitectureMd({
@@ -191,7 +197,7 @@ export function main(argv: string[]): number {
     );
   });
 
-  for (const graph of [folders, files, functions]) {
+  for (const graph of [folders, files, ...(functions ? [functions] : [])]) {
     const cycles = graph.cycles.length > 0 ? `${graph.cycles.length} cycle(s)!` : "no cycles";
     console.error(
       `  ${graph.level}: ${graph.nodes.length} nodes, ${graph.edges.length} edges, ${cycles}`,
@@ -200,7 +206,7 @@ export function main(argv: string[]): number {
   if (unusedImports.length > 0) {
     console.error(`  ${unusedImports.length} unused import(s) — see ARCHITECTURE.md`);
   }
-  console.error(`Wrote 3 files to ${outDir}`);
+  console.error(`Wrote ${functions ? 3 : 2} files to ${outDir}`);
 
   const rulesPath = path.join(targetDir, "dagward.yml");
   if (!fs.existsSync(rulesPath)) {
@@ -290,22 +296,29 @@ function writeGraph(file: string, graph: Graph): void {
 }
 
 function runViz(outDir: string, noOpen: boolean): number {
-  const stored = {} as { files: Graph; functions: Graph };
-  for (const level of ["files", "functions"] as const) {
-    const file = path.join(outDir, `graph.${level}.json`);
-    try {
-      stored[level] = JSON.parse(fs.readFileSync(file, "utf8")) as Graph;
-    } catch {
-      console.error(`Cannot read ${file}. Run \`dagward init\` first.`);
-      return 2;
-    }
+  const filesPath = path.join(outDir, "graph.files.json");
+  let files: Graph;
+  try {
+    files = JSON.parse(fs.readFileSync(filesPath, "utf8")) as Graph;
+  } catch {
+    console.error(`Cannot read ${filesPath}. Run \`dagward init\` first.`);
+    return 2;
   }
-  // Projections, rebuilt from the stored graphs rather than read from disk.
+  // The function graph is opt-in; without it the page drills to file level.
+  let functions: Graph | undefined;
+  try {
+    functions = JSON.parse(
+      fs.readFileSync(path.join(outDir, "graph.functions.json"), "utf8"),
+    ) as Graph;
+  } catch {
+    console.error("No function graph — drilling to file level. Re-run `init --functions` for more.");
+  }
+  // Projections, rebuilt from the stored graph(s) rather than read from disk.
   const graphs: VizInput = {
-    files: stored.files,
-    functions: stored.functions,
-    folders: buildFolderGraph(stored.files),
-    unified: buildUnifiedGraph(stored.files, stored.functions),
+    files,
+    functions,
+    folders: buildFolderGraph(files),
+    unified: buildUnifiedGraph(files, functions),
   };
   const htmlPath = path.join(outDir, "viz.html");
   timed("write viz.html", () => fs.writeFileSync(htmlPath, renderVizHtml(graphs)));

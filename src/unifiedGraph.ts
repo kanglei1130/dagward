@@ -19,16 +19,19 @@ function moduleOf(id: string): string {
 // This is a viz/navigation artifact only — file/folder enforcement still
 // runs on the separate import-derived graphs, so nothing here can drop the
 // ~42% of import edges that have no backing call.
-export function buildUnifiedGraph(files: Graph, functions: Graph): Graph {
+// `functions` is optional: without it (the default `init`) the result is the
+// module level alone, which is what the viz drills when the function graph
+// was not built.
+export function buildUnifiedGraph(files: Graph, functions?: Graph): Graph {
   const nodes: GraphNode[] = [];
   for (const n of files.nodes) nodes.push({ ...n }); // module nodes = file nodes
-  for (const n of functions.nodes) {
+  for (const n of functions?.nodes ?? []) {
     if (!n.id.endsWith(MODULE_SUFFIX)) nodes.push({ ...n }); // real functions only
   }
 
   const merged = new Map<string, GraphEdge>();
   for (const e of files.edges) accumulateEdge(merged, e); // import edges
-  for (const e of functions.edges) {
+  for (const e of functions?.edges ?? []) {
     const from = moduleOf(e.from);
     const to = moduleOf(e.to);
     if (from === to) continue; // a folded top-level self-reference collapses away

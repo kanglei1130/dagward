@@ -4,7 +4,8 @@ import type { EdgeKind, Graph } from "./graph.js";
 export interface VizInput {
   folders: Graph;
   files: Graph;
-  functions: Graph;
+  // Absent unless `init --functions` ran; the page then drills to file level only.
+  functions?: Graph;
   unified: Graph;
 }
 
@@ -44,7 +45,11 @@ export function renderVizHtml(input: VizInput): string {
     ]),
     // true cycles at every level, as node-id lists — the client classifies a
     // displayed aggregate cycle as real vs projection against these
-    trueCycles: [...input.folders.cycles, ...input.files.cycles, ...input.functions.cycles].map(
+    trueCycles: [
+      ...input.folders.cycles,
+      ...input.files.cycles,
+      ...(input.functions?.cycles ?? []),
+    ].map(
       (c) => c.nodes,
     ),
   };

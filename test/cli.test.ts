@@ -16,14 +16,32 @@ describe("cli", () => {
     const code = main(["init", fixture, "--out", tmpDir]);
     expect(code).toBe(0);
 
-    // Only the compiler-produced graphs are stored; folder and unified graphs
-    // are projections, derived on read (see the viz test below).
+    // File level only by default; folder/unified are projections derived on
+    // read (see the viz test), and the function graph is opt-in.
     const written = fs.readdirSync(tmpDir).sort();
-    expect(written).toEqual(["ARCHITECTURE.md", "graph.files.json", "graph.functions.json"]);
+    expect(written).toEqual(["ARCHITECTURE.md", "graph.files.json"]);
 
     const files = JSON.parse(fs.readFileSync(path.join(tmpDir, "graph.files.json"), "utf8"));
     expect(files.version).toBe(1);
     expect(files.level).toBe("file");
+  });
+
+  it("--functions adds the function graph and its cycles to the report", () => {
+    const fixture = path.join(__dirname, "fixtures", "simple");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dagward-fns-"));
+    try {
+      expect(main(["init", fixture, "--out", dir, "--functions"])).toBe(0);
+      expect(fs.readdirSync(dir).sort()).toEqual([
+        "ARCHITECTURE.md",
+        "graph.files.json",
+        "graph.functions.json",
+      ]);
+      const fns = JSON.parse(fs.readFileSync(path.join(dir, "graph.functions.json"), "utf8"));
+      expect(fns.level).toBe("function");
+      expect(fs.readFileSync(path.join(dir, "ARCHITECTURE.md"), "utf8")).toContain("| function |");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("returns 2 for a directory without a tsconfig", () => {
@@ -161,11 +179,10 @@ describe("cli", () => {
       const html = fs.readFileSync(path.join(dir, "viz.html"), "utf8");
       expect(html).toContain("application/json");
       expect(html).toContain("src/a.ts");
-      // folders + unified are derived at viz time, not read from disk: the
-      // page still gets unified nodes (function ids carry "#") and the
-      // per-level cycle data the renderer needs.
+      // folders + unified are derived at viz time, not read from disk
       expect(html).toContain("trueCycles");
-      expect(html).toMatch(/src\/a\.ts#/);
+      // no function graph by default, so the page drills to file level only
+      expect(html).not.toMatch(/src\/a\.ts#/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
